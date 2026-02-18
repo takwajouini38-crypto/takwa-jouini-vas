@@ -11,7 +11,8 @@ class UserController extends Controller
     // Liste des utilisateurs
     public function index()
     {
-        $users = User::all(); // ou paginate() pour la pagination
+         // On récupère tous les utilisateurs sauf les admins
+        $users = User::where('role', '!=', 'admin')->get();
         return Inertia::render('Admin/Users', [ // <-- ici le chemin correspond au dossier
         'users' => $users,
     ]);

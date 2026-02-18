@@ -1,226 +1,190 @@
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import Dropdown from '@/Components/Dropdown';
-import NavLink from '@/Components/NavLink';
-import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
-import { Link, usePage } from '@inertiajs/react';
-import { useState } from 'react';
 
-export default function AuthenticatedLayout({ header, children }) {
-    // Sécurisation de la récupération de l'utilisateur
+import { Link, usePage, router } from '@inertiajs/react';
+import { useState } from 'react';
+import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
+
+export default function AuthenticatedLayout({ children, title }) {
     const { auth } = usePage().props;
     const user = auth?.user;
 
-    const [showingNavigationDropdown, setShowingNavigationDropdown] =
-        useState(false);
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+
+    // ✅ Sidebar menu (sans Profile)
+    const navigation = [
+        { name: 'Dashboard', href: route('dashboard'), roles: ['admin','analyst_op','analyst_biz'] },
+        { name: 'Utilisateurs', href: route('users.index'), roles: ['admin'] },
+        { name: 'Dashboard Opérationnel', href: route('dashboard.op'), roles: ['admin','analyst_op'] },
+        { name: 'Dashboard Business', href: route('dashboard.biz'), roles: ['admin','analyst_biz'] },
+    ];
+
+    // ✅ Active link check
+    const isActive = (href) => window.location.pathname === new URL(href).pathname;
+
+    // ✅ Logout Breeze correct
+    const handleLogout = () => {
+        router.post(route('logout'));
+    };
 
     return (
-        <div className="min-h-screen bg-gray-100">
-            <nav className="border-b border-gray-100 bg-white">
-                <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                    <div className="flex h-16 justify-between">
-                        <div className="flex">
-                            <div className="flex shrink-0 items-center">
-                                <Link href="/">
-                                    <ApplicationLogo className="block h-9 w-auto fill-current text-gray-800" />
-                                </Link>
-                            </div>
+        <div className="flex min-h-screen bg-gray-100">
 
-                            <div className="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-                                {/* Dashboard général */}
-                                <NavLink
-                                    href={route('dashboard')}
-                                    active={route().current('dashboard')}
-                                >
-                                    Dashboard
-                                </NavLink>
+            {/* ================= Sidebar Desktop ================= */}
+            <aside className="hidden md:flex md:flex-col w-64 bg-white shadow-md">
 
-                                {/* Admin uniquement - Ajout de user?.role */}
-                                {user?.role === "admin" && (
-                                    <NavLink
-                                        href={route('users.index')}
-                                        active={route().current('users.index')}
-                                    >
-                                        Utilisateurs
-                                    </NavLink>
-                                )}
+                <div className="h-16 flex items-center px-6 text-2xl font-bold border-b">
+                    Admin Panel
+                </div>
 
-                                {/* Analyste Op + Admin - Ajout de user?.role */}
-                                {(user?.role === "admin" || user?.role === "analyst_op") && (
-                                    <NavLink
-                                        href={route('dashboard.op')}
-                                        active={route().current('dashboard.op')}
-                                    >
-                                        Dashboard Op
-                                    </NavLink>
-                                )}
 
-                                {/* Analyste Biz + Admin - Ajout de user?.role */}
-                                {(user?.role === "admin" || user?.role === "analyst_biz") && (
-                                    <NavLink
-                                        href={route('dashboard.biz')}
-                                        active={route().current('dashboard.biz')}
-                                    >
-                                        Dashboard Biz
-                                    </NavLink>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="hidden sm:ms-6 sm:flex sm:items-center">
-                            <div className="relative ms-3">
-                                <Dropdown>
-                                    <Dropdown.Trigger>
-                                        <span className="inline-flex rounded-md">
-                                            <button
-                                                type="button"
-                                                className="inline-flex items-center rounded-md border border-transparent bg-white px-3 py-2 text-sm font-medium leading-4 text-gray-500 transition duration-150 ease-in-out hover:text-gray-700 focus:outline-none"
-                                            >
-                                                {/* Sécurisation du nom */}
-                                                {user?.name}
-
-                                                <svg
-                                                    className="-me-0.5 ms-2 h-4 w-4"
-                                                    xmlns="http://www.w3.org/2000/svg"
-                                                    viewBox="0 0 20 20"
-                                                    fill="currentColor"
-                                                >
-                                                    <path
-                                                        fillRule="evenodd"
-                                                        d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                                                        clipRule="evenodd"
-                                                    />
-                                                </svg>
-                                            </button>
-                                        </span>
-                                    </Dropdown.Trigger>
-
-                                    <Dropdown.Content>
-                                        <Dropdown.Link href={route('profile.edit')}>
-                                            Profile
-                                        </Dropdown.Link>
-                                        <Dropdown.Link
-                                            href={route('logout')}
-                                            method="post"
-                                            as="button"
-                                        >
-                                            Log Out
-                                        </Dropdown.Link>
-                                    </Dropdown.Content>
-                                </Dropdown>
-                            </div>
-                        </div>
-
-                        <div className="-me-2 flex items-center sm:hidden">
-                            <button
-                                onClick={() =>
-                                    setShowingNavigationDropdown(
-                                        (previousState) => !previousState,
-                                    )
-                                }
-                                className="inline-flex items-center justify-center rounded-md p-2 text-gray-400 transition duration-150 ease-in-out hover:bg-gray-100 hover:text-gray-500 focus:bg-gray-100 focus:text-gray-500 focus:outline-none"
+                <nav className="mt-6 flex-1 px-4">
+                    {navigation.map((item) =>
+                        item.roles.includes(user?.role) ? (
+                            <Link
+                                key={item.name}
+                                href={item.href}
+                                className={`block py-2 px-4 rounded mt-2 transition ${
+                                    isActive(item.href)
+                                        ? 'bg-indigo-600 text-white'
+                                        : 'text-gray-700 hover:bg-gray-200'
+                                }`}
                             >
-                                <svg
-                                    className="h-6 w-6"
-                                    stroke="currentColor"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        className={!showingNavigationDropdown ? 'inline-flex' : 'hidden'}
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth="2"
-                                        d="M4 6h16M4 12h16M4 18h16"
-                                    />
-                                    <path
-                                        className={showingNavigationDropdown ? 'inline-flex' : 'hidden'}
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth="2"
-                                        d="M6 18L18 6M6 6l12 12"
-                                    />
-                                </svg>
+                                {item.name}
+                            </Link>
+                        ) : null
+                    )}
+                </nav>
+            </aside>
+
+            {/* ================= Sidebar Mobile ================= */}
+            {sidebarOpen && (
+                <div className="fixed inset-0 z-50 flex md:hidden">
+
+                    {/* Overlay */}
+                    <div
+                        className="fixed inset-0 bg-black/40"
+                        onClick={() => setSidebarOpen(false)}
+                    ></div>
+
+                    {/* Sidebar */}
+                    <aside className="relative w-64 bg-white shadow-md flex flex-col z-50">
+
+                        <div className="p-6 flex justify-between items-center border-b">
+                            <span className="text-xl font-bold">Admin Panel</span>
+
+                            <button onClick={() => setSidebarOpen(false)}>
+                                <XMarkIcon className="w-6 h-6 text-gray-700" />
                             </button>
                         </div>
-                    </div>
+
+                        <nav className="mt-6 flex-1 px-4">
+                            {navigation.map((item) =>
+                                item.roles.includes(user?.role) ? (
+                                    <Link
+                                        key={item.name}
+                                        href={item.href}
+                                        className="block py-2 px-4 rounded mt-2 text-gray-700 hover:bg-gray-200"
+                                        onClick={() => setSidebarOpen(false)}
+                                    >
+                                        {item.name}
+                                    </Link>
+                                ) : null
+                            )}
+                        </nav>
+                    </aside>
                 </div>
-
-                <div className={(showingNavigationDropdown ? 'block' : 'hidden') + ' sm:hidden'}>
-                    <div className="space-y-1 pb-3 pt-2">
-                        <ResponsiveNavLink
-                            href={route('dashboard')}
-                            active={route().current('dashboard')}
-                        >
-                            Dashboard
-                        </ResponsiveNavLink>
-
-                        {/* Admin Mobile */}
-                        {user?.role === "admin" && (
-                            <ResponsiveNavLink
-                                href={route('users.index')}
-                                active={route().current('users.index')}
-                            >
-                                Utilisateurs
-                            </ResponsiveNavLink>
-                        )}
-
-                        {/* Analyste Op Mobile */}
-                        {(user?.role === "admin" || user?.role === "analyst_op") && (
-                            <ResponsiveNavLink
-                                href={route('dashboard.op')}
-                                active={route().current('dashboard.op')}
-                            >
-                                Dashboard Op
-                            </ResponsiveNavLink>
-                        )}
-
-                        {/* Analyste Biz Mobile */}
-                        {(user?.role === "admin" || user?.role === "analyst_biz") && (
-                            <ResponsiveNavLink
-                                href={route('dashboard.biz')}
-                                active={route().current('dashboard.biz')}
-                            >
-                                Dashboard Biz
-                            </ResponsiveNavLink>
-                        )}
-                    </div>
-
-                    <div className="border-t border-gray-200 pb-1 pt-4">
-                        <div className="px-4">
-                            {/* Sécurisation infos mobiles */}
-                            <div className="text-base font-medium text-gray-800">
-                                {user?.name}
-                            </div>
-                            <div className="text-sm font-medium text-gray-500">
-                                {user?.email}
-                            </div>
-                        </div>
-
-                        <div className="mt-3 space-y-1">
-                            <ResponsiveNavLink href={route('profile.edit')}>
-                                Profile
-                            </ResponsiveNavLink>
-                            <ResponsiveNavLink
-                                method="post"
-                                href={route('logout')}
-                                as="button"
-                            >
-                                Log Out
-                            </ResponsiveNavLink>
-                        </div>
-                    </div>
-                </div>
-            </nav>
-
-            {header && (
-                <header className="bg-white shadow">
-                    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-                        {header}
-                    </div>
-                </header>
             )}
 
-            <main>{children}</main>
+            {/* ================= Main Content ================= */}
+            <div className="flex-1 flex flex-col">
+
+                {/* ================= Top Navbar ================= */}
+                <header className="bg-white shadow">
+
+                    <div className="h-16 flex items-center justify-between px-8">
+
+                        {/* Mobile sidebar button */}
+                        <div className="md:hidden">
+                            <button
+                                onClick={() => setSidebarOpen(true)}
+                                className="p-2 rounded-md hover:bg-gray-200"
+                            >
+                                <Bars3Icon className="w-6 h-6 text-gray-700" />
+                            </button>
+                        </div>
+
+                        {/* Page title */}
+                        <h2 className="text-xl font-semibold text-gray-800">
+                            {title}
+                        </h2>
+
+                        {/* ================= Profile Dropdown ================= */}
+                        <Dropdown>
+                            <Dropdown.Trigger>
+                                <button className="flex items-center gap-2 text-gray-700 hover:text-gray-900">
+
+                                    {/* Avatar */}
+                                    <img
+                                        src={`https://ui-avatars.com/api/?name=${user?.name}&background=random`}
+                                        className="w-9 h-9 rounded-full"
+                                        alt="avatar"
+                                    />
+
+                                    {/* Username */}
+                                    <span className="font-medium">
+                                        {user?.name}
+                                    </span>
+
+                                    {/* Arrow */}
+                                    <svg
+                                        className="w-4 h-4"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth="2"
+                                            d="M19 9l-7 7-7-7"
+                                        />
+                                    </svg>
+                                </button>
+                            </Dropdown.Trigger>
+
+                            <Dropdown.Content>
+
+                                {/* Profile */}
+                                <Dropdown.Link href={route('profile.edit')}>
+                                    Profile
+                                </Dropdown.Link>
+
+                                {/* Divider */}
+                                <div className="border-t my-1"></div>
+
+                                {/* Logout */}
+                                <button
+                                    onClick={handleLogout}
+                                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+                                >
+                                    Logout
+                                </button>
+
+                            </Dropdown.Content>
+                        </Dropdown>
+
+                    </div>
+                </header>
+
+                {/* ================= Page Content ================= */}
+                <main className="flex-1">
+                    <div className="px-8 py-6">
+                        {children}
+                    </div>
+                </main>
+
+            </div>
         </div>
     );
 }
