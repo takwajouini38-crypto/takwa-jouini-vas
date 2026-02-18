@@ -34,7 +34,7 @@ Route::middleware(['auth', 'checkrole:admin'])->group(function () {
 
 
 // Analyste Opérationnelle + Admin
-Route::middleware(['auth', 'checkrole:analyst_op,admin'])->group(function () {
+Route::middleware(['auth', 'checkrole:analyst_op'])->group(function () {
     Route::get('/dashboard-op', function () {
         return Inertia::render('Dashboards/OperationalDashboard');
     })->name('dashboard.op');
@@ -42,7 +42,7 @@ Route::middleware(['auth', 'checkrole:analyst_op,admin'])->group(function () {
 
 
 //  Analyste Business + Admin
-Route::middleware(['auth', 'checkrole:analyst_biz,admin'])->group(function () {
+Route::middleware(['auth', 'checkrole:analyst_biz'])->group(function () {
     Route::get('/dashboard-biz', function () {
         return Inertia::render('Dashboards/BusinessDashboard');
     })->name('dashboard.biz');

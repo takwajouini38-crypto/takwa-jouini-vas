@@ -10,13 +10,19 @@ class UserController extends Controller
 {
     // Liste des utilisateurs
     public function index()
-    {
-         // On récupère tous les utilisateurs sauf les admins
-        $users = User::where('role', '!=', 'admin')->get();
-        return Inertia::render('Admin/Users', [ // <-- ici le chemin correspond au dossier
+{
+    // Récupérer tous les utilisateurs sauf admin
+    $users = User::where('role', '!=', 'admin')->get();
+
+    // Renvoyer via Inertia + info utilisateur connecté
+    return Inertia::render('Admin/Users', [
         'users' => $users,
+        'auth' => [
+            'user' => auth()->user(),
+        ],
     ]);
-    }
+}
+
 
     // Supprimer un utilisateur
     public function destroy(User $user)
