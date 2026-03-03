@@ -15,6 +15,7 @@ export default function AuthenticatedLayout({ children, title }) {
         { name: 'Utilisateurs', href: route('users.index'), roles: ['admin'] },
         { name: 'Dashboard Opérationnel', href: route('dashboard.op'), roles: ['analyst_op'] },
         { name: 'Dashboard Business', href: route('dashboard.biz'), roles: ['analyst_biz'] },
+        { name: 'Suivi des Jobs', href: route('job-tasks.dashboard'), roles: ['analyst_op', 'admin'] },
     ];
 
     const isActive = (href) => window.location.pathname === new URL(href, window.location.origin).pathname;

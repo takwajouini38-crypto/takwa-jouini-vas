@@ -59,11 +59,27 @@ return [
             'throw' => false,
             'report' => false,
         ],
-
+         'ftp_local' => [
+    'driver'   => 'ftp',
+    'host'     => env('FTP_HOST', '127.0.0.1'),
+    'username' => env('FTP_USERNAME', 'ETL_USERS'),
+    'password' => env('FTP_PASSWORD', 'etl123'),
+    'port'     => (int) env('FTP_PORT', 21), // attention au cast en int
+    /*'root'     => env('FTP_ROOT', 'C:/ftp-cdr'), // slash / et non backslash*/
+    'root' => '',
+    'passive'  => false,
+    'ssl'      => true,
+    'timeout'  => 30,
+],
+'cdr_storage' => [
+        'driver' => 'local',
+        'root'   => storage_path('app/cdr'), // ici Laravel va copier les fichiers
+    ],
     ],
 
     /*
-    |--------------------------------------------------------------------------
+    |
+    --------------------------------------------------------------------------
     | Symbolic Links
     |--------------------------------------------------------------------------
     |
