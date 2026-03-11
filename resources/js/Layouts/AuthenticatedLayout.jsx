@@ -11,12 +11,15 @@ export default function AuthenticatedLayout({ children, title }) {
 
     // ✅ Navigation selon rôle
     const navigation = [
-        { name: 'Dashboard', href: route('dashboard'), roles: ['admin', 'analyst_op', 'analyst_biz'] },
-        { name: 'Utilisateurs', href: route('users.index'), roles: ['admin'] },
-        { name: 'Dashboard Opérationnel', href: route('dashboard.op'), roles: ['analyst_op'] },
-        { name: 'Dashboard Business', href: route('dashboard.biz'), roles: ['analyst_biz'] },
-        { name: 'Suivi des Jobs', href: route('job-tasks.dashboard'), roles: ['analyst_op', 'admin'] },
-    ];
+    { name: 'Dashboard', href: route('dashboard'), roles: ['admin', 'analyst_op', 'analyst_biz'] },
+    { name: 'Utilisateurs', href: route('admin.users.index'), roles: ['admin'] },  // ← corrigé
+    { name: 'Gestion FTP', href: route('admin.ftp.index'), roles: ['admin'] },
+    { name: 'Gestion Base de Données', href: route('admin.db.index'), roles: ['admin'] },
+    { name: 'Dashboard Opérationnel', href: route('dashboard.op'), roles: ['analyst_op'] },
+    { name: 'Dashboard Business', href: route('dashboard.biz'), roles: ['analyst_biz'] },
+    { name: 'Suivi des Jobs', href: route('job-tasks.dashboard'), roles: ['analyst_op', 'admin'] },
+    { name: 'Gestion des services', href: route('services.index'), roles: ['analyst_op', 'admin'] },
+];
 
     const isActive = (href) => window.location.pathname === new URL(href, window.location.origin).pathname;
 

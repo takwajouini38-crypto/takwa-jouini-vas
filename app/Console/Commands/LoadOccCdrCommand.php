@@ -3,14 +3,14 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use App\Jobs\FetchMmgCdr;
+use App\Jobs\LoadOccCdr;
 use App\Models\JobTask;
 use Illuminate\Support\Facades\Log;
 
-class FetchMmgCdrCommand extends Command
+class LoadOccCdrCommand extends Command
 {
-    protected $signature = 'mmg:fetch-cdr {--job-id=}';
-    protected $description = 'Récupère les fichiers CDR MMG depuis le FTP';
+    protected $signature = 'occ:load-cdr {--job-id=}';
+    protected $description = 'Charge les CDR OCC dans la base';
 
     public function handle()
     {
@@ -29,38 +29,34 @@ class FetchMmgCdrCommand extends Command
         }
 
         try {
-
+            // Marquer le job comme running
             $jobModel->update([
                 'status' => 'running',
                 'started_at' => now()
             ]);
 
-            Log::info("Fetch MMG - Début job ID : $jobId");
+            Log::info("Load OCC - Début job ID : $jobId");
 
-            // Exécution directe du job
-            $job = new FetchMmgCdr();
+            // Passer le jobId au constructeur
+            $job = new LoadOccCdr($jobId);
             $job->handle();
 
+            // Marquer le job comme terminé
             $jobModel->update([
                 'status' => 'stopped',
                 'finished_at' => now()
             ]);
 
-            Log::info("Fetch MMG - Fin job ID : $jobId");
-
-            $this->info('Job exécuté avec succès');
+            Log::info("Load OCC - Fin job ID : $jobId");
 
         } catch (\Exception $e) {
-
+            // Marquer le job comme failed en cas d'erreur
             $jobModel->update([
                 'status' => 'failed',
                 'finished_at' => now()
             ]);
 
-            Log::error("Erreur Fetch MMG : " . $e->getMessage());
-
-            $this->error($e->getMessage());
-            return 1;
+            Log::error("Erreur Load OCC : " . $e->getMessage());
         }
 
         return 0;

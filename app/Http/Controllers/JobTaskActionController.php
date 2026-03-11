@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\JobTask;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 
 class JobTaskActionController extends Controller
@@ -14,9 +13,10 @@ class JobTaskActionController extends Controller
             return response()->json(['error' => 'Job déjà en cours'], 400);
         }
 
-        // Mapping type → commande
         $commandMap = [
+            'fetch_mmg'    => 'mmg:fetch-cdr',
             'loading_mmg'  => 'mmg:load-cdr',
+            'fetch_occ'    => 'occ:fetch-cdr', // ✅ nouveau job ajouté
             'loading_occ'  => 'occ:load-cdr',
             'agg_mmg'      => 'mmg:agg',
             'agg_occ'      => 'occ:agg',
@@ -24,15 +24,15 @@ class JobTaskActionController extends Controller
         ];
 
         $command = $commandMap[$jobTask->type] ?? null;
+
         if (!$command) {
             return response()->json(['error' => 'Type de job inconnu'], 400);
         }
 
-        // Mise à jour immédiate du statut
-        $jobTask->update(['status' => 'running']);
-
-        // Lancement de la commande en arrière-plan via la queue
-        Artisan::queue($command, ['--job-id' => $jobTask->id]);
+        // Exécution immédiate (pas de queue)
+        Artisan::call($command, [
+            '--job-id' => $jobTask->id
+        ]);
 
         return response()->json(['success' => true]);
     }
@@ -43,7 +43,10 @@ class JobTaskActionController extends Controller
             return response()->json(['error' => 'Job non démarré'], 400);
         }
 
-        $jobTask->update(['status' => 'stopped']);
+        $jobTask->update([
+            'status' => 'stopped',
+            'finished_at' => now()
+        ]);
 
         return response()->json(['success' => true]);
     }

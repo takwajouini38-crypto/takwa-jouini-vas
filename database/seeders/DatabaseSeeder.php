@@ -19,6 +19,8 @@ class DatabaseSeeder extends Seeder
        JobTask::create(['name' => 'Agg CDR MMG', 'type' => 'agg_mmg', 'status' => 'stopped']);
        JobTask::create(['name' => 'Agg CDR OCC', 'type' => 'agg_occ', 'status' => 'stopped']);
        JobTask::create(['name' => 'Suppression CDR', 'type' => 'suppression', 'status' => 'stopped']);
+       JobTask::create(['name' => 'Fetch CDR MMG', 'type' => 'fetch_mmg', 'status' => 'stopped']);
+       JobTask::create(['name' => 'Fetch CDR OCC', 'type' => 'fetch_occ', 'status' => 'stopped']);
 
         User::factory()->create([
             'name' => 'Test User',

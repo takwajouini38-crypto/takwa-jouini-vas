@@ -3,14 +3,14 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use App\Jobs\FetchMmgCdr;
+use App\Jobs\AggregateMmgCdr;
 use App\Models\JobTask;
 use Illuminate\Support\Facades\Log;
 
-class FetchMmgCdrCommand extends Command
+class AggregateMmgCdrCommand extends Command
 {
-    protected $signature = 'mmg:fetch-cdr {--job-id=}';
-    protected $description = 'Récupère les fichiers CDR MMG depuis le FTP';
+    protected $signature = 'mmg:agg {--job-id=}';
+    protected $description = 'Agrège les CDR MMG dans la table AGG';
 
     public function handle()
     {
@@ -29,16 +29,15 @@ class FetchMmgCdrCommand extends Command
         }
 
         try {
-
             $jobModel->update([
                 'status' => 'running',
                 'started_at' => now()
             ]);
 
-            Log::info("Fetch MMG - Début job ID : $jobId");
+            Log::info("Aggregate MMG - Début job ID : $jobId");
 
             // Exécution directe du job
-            $job = new FetchMmgCdr();
+            $job = new AggregateMmgCdr();
             $job->handle();
 
             $jobModel->update([
@@ -46,18 +45,17 @@ class FetchMmgCdrCommand extends Command
                 'finished_at' => now()
             ]);
 
-            Log::info("Fetch MMG - Fin job ID : $jobId");
+            Log::info("Aggregate MMG - Fin job ID : $jobId");
 
-            $this->info('Job exécuté avec succès');
+            $this->info('Job d’agrégation exécuté avec succès');
 
         } catch (\Exception $e) {
-
             $jobModel->update([
                 'status' => 'failed',
                 'finished_at' => now()
             ]);
 
-            Log::error("Erreur Fetch MMG : " . $e->getMessage());
+            Log::error("Erreur Aggregate MMG : " . $e->getMessage());
 
             $this->error($e->getMessage());
             return 1;

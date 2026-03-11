@@ -9,129 +9,184 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
+use App\Models\JobTask;
+use Illuminate\Support\Facades\Log;
 
 class LoadOccCdr implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    protected $jobId;
+
+    public function __construct($jobId)
+    {
+        $this->jobId = $jobId;
+    }
+
     public function handle()
     {
-        $disk = Storage::disk('ftp_local');
+        set_time_limit(0);
+
+        Log::info('LoadOccCdr - Début du job pour job ID : ' . $this->jobId);
+
+        $jobModel = JobTask::find($this->jobId);
+        if (!$jobModel) {
+            Log::error('LoadOccCdr - Job introuvable : ' . $this->jobId);
+            return;
+        }
+
+        $disk = Storage::disk('cdr_storage'); // storage/app/cdr
         $files = $disk->files('occ');
+
+        Log::info('LoadOccCdr - Nombre de fichiers trouvés : ' . count($files));
+        Log::info('Liste des fichiers OCC : ' . implode(', ', $files));
 
         foreach ($files as $filePath) {
 
-            if (!str_ends_with($filePath, '.csv')) continue;
+            $jobModel->refresh();
+            if ($jobModel->status !== 'running') {
+                Log::info('LoadOccCdr - Arrêt demandé avant fichier : ' . $filePath);
+                break;
+            }
 
-            $content = $disk->get($filePath);
-            $lines = explode("\n", $content);
+            if (!str_ends_with($filePath, '.csv')) {
+                Log::info('LoadOccCdr - Fichier ignoré (pas CSV) : ' . $filePath);
+                continue;
+            }
+
+            $fileFullPath = $disk->path($filePath);
+            $handle = fopen($fileFullPath, 'r');
+            if (!$handle) {
+                Log::error('Impossible d\'ouvrir le fichier : ' . $filePath);
+                continue;
+            }
+
+            // Lire l'entête
+            $header = fgetcsv($handle, 0, ",");
+            if (!$header) {
+                Log::error('Fichier vide ou entête manquante : ' . $filePath);
+                fclose($handle);
+                continue;
+            }
+
             $batch = [];
+            $lineNumber = 0;
 
-            foreach ($lines as $lineRaw) {
-                $line = str_getcsv($lineRaw, ",");
+            while (($line = fgetcsv($handle, 0, ",")) !== false) {
+                $lineNumber++;
+                if (count($line) < 1) continue;
 
-                if (count($line) < 57) continue;
-
-                $batch[] = [
-                    "B_DATASOURCE" => $line[6] ?? null,
-                    "A_MSISDN" => $line[3] ?? null,
-                    "B_MSISDN" => $line[8] ?? null,
-                    "START_DATE_TIME_HOME" => $line[54] ?? null,
-                    "START_TIME" => $line[55] ?? null,
-                    "APN" => $line[1] ?? null,
-                    "CALL_TYPE" => $line[11] ?? null,
-                    "EVENT_TYPE" => $line[27] ?? null,
-                    "CHARGE_AMOUNT_ORIG" => $line[17] ?? null,
-                    "SERVICE_ID" => $line[49] ?? null,
-                    "SUBSCRIBER_TYPE" => $line[56] ?? null,
-                    "ROAMING_TYPE" => $line[47] ?? null,
-                    "PARTNER" => $line[36] ?? null,
-                    "DATA_VOLUME" => $line[20] ?? null,
-                    "EVENT_DURATION" => $line[25] ?? null,
-                    "CHARGE_AMNT_STEP" => $line[16] ?? null,
-                    "FILTER_CODE" => $line[30] ?? null,
-                    "ORIG_START_TIME" => $line[34] ?? null,
+                $row = [
+                    "B_DATASOURCE"      => trim($line[6] ?? null),
+                    "A_MSISDN"        => trim($line[3] ?? null),
+                    "B_MSISDN"        => trim($line[8] ?? null),
+                    "PROC_DATE"       => trim($line[39] ?? null),
+                    "PROC_HOUR"       => trim($line[40] ?? null),
+                    "APN"             => trim($line[1] ?? null),
+                    "CALL_TYPE"       => trim($line[11] ?? null),
+                    "EVENT_TYPE_ORIG" => trim($line[28] ?? null),
+                    "SUBSCRIBER_TYPE" => trim($line[56] ?? null),
+                    "ROAMING_TYPE"    => trim($line[50] ?? null),
+                    "PARTNER"         => trim($line[35] ?? null),
+                    "CHARGE_AMOUNT_ORIG"   => is_numeric(str_replace(',', '.', $line[17] ?? null)) ? str_replace(',', '.', $line[17]) : null,
+                    "SERVICE_ID"         => trim($line[52] ?? null),
+                    "ORIG_START_TIME" => trim($line[34] ?? null),
                 ];
 
-                if (count($batch) == 500) {
-                    DB::table("RA_T_TMP_OCC")->insert($batch);
+                $batch[] = $row;
+
+                if (count($batch) >= 1000) {
+                    DB::table('RA_T_TMP_OCC')->insert($batch);
                     $batch = [];
                 }
             }
 
             if (!empty($batch)) {
-                DB::table("RA_T_TMP_OCC")->insert($batch);
+                DB::table('RA_T_TMP_OCC')->insert($batch);
             }
 
-            // Insert temporaire vers table DETAIL
-            DB::statement("
-                INSERT INTO RA_T_OCC_CDR_DETAIL (
-                    DATASOURCE,
-                    A_MSISDN,
-                    B_MSISDN,
-                    START_DATE,
-                    START_HOUR,
-                    APN,
-                    CALL_TYPE,
-                    EVENT_TYPE,
-                    CHARGING_ID,
-                    SERVICE_ID,
-                    SUBSCRIBER_TYPE,
-                    ROAMING_TYPE,
-                    PARTNER,
-                    EVENT_COUNT,
-                    DATA_VOLUME,
-                    EVENT_DURATION,
-                    CHARGE_AMOUNT,
-                    FILTER_CODE,
-                    KEYWORD,
-                    ORIG_START_TIME,
-                    DA_AMOUNT_CALC,
-                    MA_AMNT_CALC,
-                    FLEX_FLD1,
-                    FLEX_FLD2,
-                    FLEX_FLD3
-                )
-                SELECT
-                    B_DATASOURCE,
-                    TRIM(A_MSISDN),
-                    TRIM(B_MSISDN),
-                    TO_DATE(SUBSTR(START_DATE_TIME_HOME,1,8),'YYYYMMDD'),
-                    CASE 
-                        WHEN REGEXP_LIKE(SUBSTR(START_TIME,1,2),'^[0-9]{2}')
-                        THEN TO_NUMBER(SUBSTR(START_TIME,1,2))
-                        ELSE 0
-                    END,
-                    APN,
-                    CALL_TYPE,
-                    74 AS EVENT_TYPE,
-                    0 AS CHARGING_ID,
-                    '_N' AS SERVICE_ID,
-                    TRIM(SUBSCRIBER_TYPE),
-                    'HOME' AS ROAMING_TYPE,
-                    'TUNTT' AS PARTNER,
-                    1 AS EVENT_COUNT,
-                    0 AS DATA_VOLUME,
-                    0 AS EVENT_DURATION,
-                    TO_NUMBER(REPLACE(CHARGE_AMOUNT_ORIG, ',', '.')),
-                    '_UN' AS FILTER_CODE,
-                    TRIM(SERVICE_ID) AS KEYWORD,
-                    TRIM(ORIG_START_TIME),
-                    0 AS DA_AMOUNT_CALC,
-                    TO_NUMBER(REPLACE(CHARGE_AMOUNT_ORIG, ',', '.')) AS MA_AMNT_CALC,
-                    0 AS FLEX_FLD1,
-                    0 AS FLEX_FLD2,
-                    0 AS FLEX_FLD3
-                FROM RA_T_TMP_OCC
-                WHERE B_DATASOURCE IS NOT NULL
-                  AND A_MSISDN IS NOT NULL
-                  AND START_DATE_TIME_HOME IS NOT NULL
-                  AND REGEXP_LIKE(START_DATE_TIME_HOME, '^[0-9]{8}')
-            ");
+            fclose($handle);
 
+            Log::info("Fichier $filePath traité : $lineNumber lignes insérées dans TMP");
+
+            // TMP → DETAIL
+            try {
+                DB::statement("
+INSERT INTO RA_T_OCC_CDR_DETAIL (
+    DATASOURCE,
+    A_MSISDN,
+    B_MSISDN,
+    START_DATE,
+    START_HOUR,
+    APN,
+    CALL_TYPE,
+    EVENT_TYPE,
+    SUBSCRIBER_TYPE,
+    ROAMING_TYPE,
+    PARTNER,
+    CHARGE_AMOUNT,
+    KEYWORD,
+    ORIG_START_TIME
+)
+
+SELECT
+    TRIM(B_DATASOURCE),
+
+    TRIM(A_MSISDN),
+
+    TRIM(B_MSISDN),
+
+    CASE
+        WHEN REGEXP_LIKE(SUBSTR(TRIM(ORIG_START_TIME),1,8),'^[0-9]{8}$')
+        THEN TO_DATE(SUBSTR(TRIM(ORIG_START_TIME),1,8),'YYYYMMDD')
+        ELSE NULL
+    END,
+
+    CASE
+        WHEN REGEXP_LIKE(SUBSTR(TRIM(PROC_HOUR),1,2),'^[0-9]{1,2}$')
+        THEN TO_NUMBER(SUBSTR(TRIM(PROC_HOUR),1,2))
+        ELSE NULL
+    END,
+
+    TRIM(APN),
+
+    TRIM(CALL_TYPE),
+
+    74,
+
+    SUBSTR(TRIM(SUBSCRIBER_TYPE),1,20),
+
+    SUBSTR(TRIM(ROAMING_TYPE),1,10),
+
+    SUBSTR(TRIM(PARTNER),1,50),
+
+    CASE
+        WHEN REGEXP_LIKE(CHARGE_AMOUNT_ORIG,'^[0-9]+(\.[0-9]+)?$')
+        THEN ROUND(TO_NUMBER(CHARGE_AMOUNT_ORIG),2)
+        ELSE NULL
+    END,
+
+    SUBSTR(TRIM(SERVICE_ID),1,50),
+
+    TRIM(ORIG_START_TIME)
+
+FROM RA_T_TMP_OCC
+
+WHERE TRIM(A_MSISDN) IS NOT NULL
+AND TRIM(B_MSISDN) IS NOT NULL
+");
+            } catch (\Exception $e) {
+                Log::error("Erreur TMP → DETAIL dans le fichier $filePath : " . $e->getMessage());
+                throw $e;
+            }
+
+            // Nettoyer TMP
             DB::statement("TRUNCATE TABLE RA_T_TMP_OCC");
 
+            // Déplacer le fichier traité
             $disk->move($filePath, 'occ/processed/' . basename($filePath));
         }
+
+        Log::info('LoadOccCdr - Fin du job pour job ID : ' . $this->jobId);
     }
 }

@@ -15,10 +15,10 @@ class FetchOccCdr implements ShouldQueue
 
     public function handle()
     {
-        $sourceFtp = Storage::disk('ftp');
-        $localFtp  = Storage::disk('ftp_local');
+        $sourceFtp = Storage::disk('ftp_local');
+        $localFtp  = Storage::disk('cdr_storage');
 
-        $files = $sourceFtp->files('/cdr occ');
+        $files = $sourceFtp->files('occ');
 
         foreach ($files as $filePath) {
 
@@ -28,11 +28,12 @@ class FetchOccCdr implements ShouldQueue
 
             $content = $sourceFtp->get($filePath);
 
-            $localFtp->put('/occ/' . $filename, $content);
+            $localFtp->put('occ/' . $filename, $content);
 
+          // Déplacer vers dossier processed
             $sourceFtp->move(
-                $filePath,
-                '/cdr occ/processed/' . $filename
+                'occ/' . $filename,
+                'occ/processed/' . $filename
             );
         }
     }
