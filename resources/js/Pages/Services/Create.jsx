@@ -1,19 +1,73 @@
-import React from 'react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import Form from './Form';
+import React from "react";
+import { useForm } from "@inertiajs/react";
 
-export default function Create() {
-    return (
-        <AuthenticatedLayout>
+export default function Create(){
 
-            <div className="py-6">
-                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
-                    <h1 className="text-2xl font-semibold mb-4">Créer un nouveau service</h1>
-                    <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6">
-                        <Form />
-                    </div>
-                </div>
-            </div>
-        </AuthenticatedLayout>
-    );
+const {data,setData,post,processing,errors} = useForm({
+
+nom_service:"",
+nom_fournisseur:"",
+numero_court:"",
+keyword:"",
+type:"",
+prix:""
+
+});
+
+function submit(e){
+e.preventDefault();
+post("/services");
+}
+
+return(
+
+<form onSubmit={submit}>
+
+<h2>Ajouter Service</h2>
+
+<input
+placeholder="Nom Service"
+value={data.nom_service}
+onChange={e=>setData("nom_service",e.target.value)}
+/>
+{errors.nom_service && <div>{errors.nom_service}</div>}
+
+<input
+placeholder="Fournisseur"
+value={data.nom_fournisseur}
+onChange={e=>setData("nom_fournisseur",e.target.value)}
+/>
+
+<input
+placeholder="Numero Court"
+value={data.numero_court}
+onChange={e=>setData("numero_court",e.target.value)}
+/>
+
+<input
+placeholder="Keyword"
+value={data.keyword}
+onChange={e=>setData("keyword",e.target.value)}
+/>
+
+<input
+placeholder="Type"
+value={data.type}
+onChange={e=>setData("type",e.target.value)}
+/>
+
+<input
+placeholder="Prix"
+value={data.prix}
+onChange={e=>setData("prix",e.target.value)}
+/>
+
+<button type="submit" disabled={processing}>
+Enregistrer
+</button>
+
+</form>
+
+)
+
 }

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { usePage, router } from "@inertiajs/react";
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Bar, Line, Pie } from "react-chartjs-2";
 import {
     Chart as ChartJS,

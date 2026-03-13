@@ -10,7 +10,9 @@ use App\Http\Controllers\JobTaskActionController;
 use App\Http\Controllers\JobTaskController;
 use App\Http\Controllers\Admin\FtpServerController;
 use App\Http\Controllers\Admin\DbConfigController;
-use App\Http\Controllers\ServiceController;
+use App\Http\Controllers\ServiceSmsPlusController;
+
+Route::resource('services',ServiceSmsPlusController::class);
 
 // Page d'accueil (publique)
 Route::get('/', function () {
@@ -55,7 +57,7 @@ Route::middleware(['auth', 'checkrole:analyst_op'])->group(function () {
     Route::get('/dashboard-op', [MMGTrafficController::class, 'index'])->name('dashboard.op');
 });
 
-Route::resource('services', ServiceController::class)->middleware(['auth', 'checkrole:analyst_op']);
+
 
 
 // Routes pour les analystes business (rôle 'analyst_biz')
