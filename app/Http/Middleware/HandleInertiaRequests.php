@@ -27,7 +27,7 @@ class HandleInertiaRequests extends Middleware
      *
      * @return array<string, mixed>
      */
-    public function share(Request $request): array
+    /*public function share(Request $request): array
     {
         return [
             ...parent::share($request),
@@ -35,5 +35,14 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->user(),
             ],
         ];
-    }
+    }*/
+        public function share(Request $request)
+{
+    return array_merge(parent::share($request), [
+        'flash' => [
+            'success' => fn () => $request->session()->get('success'),
+            'error' => fn () => $request->session()->get('error'),
+        ],
+    ]);
+}
 }

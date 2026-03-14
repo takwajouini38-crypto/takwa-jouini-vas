@@ -11,7 +11,7 @@ class ServiceSmsPlusController extends Controller
     public function index()
     {
         $services = ServiceSmsPlus::latest()->get();
-
+       $services = ServiceSmsPlus::orderBy('created_at', 'desc')->paginate(10);
         return Inertia::render('Services/Index', [
             'services' => $services
         ]);
@@ -61,8 +61,17 @@ class ServiceSmsPlusController extends Controller
 
     public function destroy(ServiceSmsPlus $service)
     {
-        $service->delete();
+        try {
+            // Supprimer le service
+            $service->delete();
 
-        return redirect()->route('services.index');
+            // Rediriger vers l'index avec un message de succès
+            return redirect()->route('services.index')
+                             ->with('success', 'Service supprimé avec succès');
+        } catch (\Exception $e) {
+            // En cas d'erreur, rediriger avec un message d'erreur
+            return redirect()->route('services.index')
+                             ->with('error', 'Impossible de supprimer le service : ' . $e->getMessage());
+        }
     }
 }
