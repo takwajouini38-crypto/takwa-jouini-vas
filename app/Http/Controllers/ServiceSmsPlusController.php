@@ -10,8 +10,7 @@ class ServiceSmsPlusController extends Controller
 {
     public function index()
     {
-        $services = ServiceSmsPlus::latest()->get();
-       $services = ServiceSmsPlus::orderBy('created_at', 'desc')->paginate(10);
+        $services = ServiceSmsPlus::orderBy('created_at', 'desc')->paginate(10);
         return Inertia::render('Services/Index', [
             'services' => $services
         ]);
@@ -23,19 +22,25 @@ class ServiceSmsPlusController extends Controller
     }
 
     public function store(Request $request)
-    {
-        $request->validate([
-            'nom_service' => 'required|string|max:255',
-            'nom_fournisseur' => 'required|string|max:255',
-            'numero_court' => 'required',
-            'type' => 'required',
-            'prix' => 'required|numeric'
-        ]);
+{
+    $request->validate([
+        'nom_service' => 'required|string|max:255',
+        'nom_fournisseur' => 'required|string|max:255',
+        'numero_court' => 'required',
+        'type' => 'required',
+        'prix' => 'required|numeric'
+    ]);
 
-        ServiceSmsPlus::create($request->all());
+    ServiceSmsPlus::create($request->all());
 
-        return redirect()->route('services.index');
-    }
+    $services = ServiceSmsPlus::orderBy('created_at', 'desc')->paginate(10);
+    return Inertia::render('Services/Index', [
+        'services' => $services,
+        'flash' => [
+            'success' => 'Service créé avec succès.'
+        ]
+    ])->with('url', route('services.index')); // Force l'URL à /services
+}
 
     public function edit(ServiceSmsPlus $service)
     {
@@ -44,34 +49,36 @@ class ServiceSmsPlusController extends Controller
         ]);
     }
 
-    public function update(Request $request, ServiceSmsPlus $service)
-    {
-        $request->validate([
-            'nom_service' => 'required|string|max:255',
-            'nom_fournisseur' => 'required|string|max:255',
-            'numero_court' => 'required',
-            'type' => 'required',
-            'prix' => 'required|numeric'
-        ]);
+   public function update(Request $request, ServiceSmsPlus $service)
+{
+    $request->validate([
+        'nom_service' => 'required|string|max:255',
+        'nom_fournisseur' => 'required|string|max:255',
+        'numero_court' => 'required',
+        'type' => 'required',
+        'prix' => 'required|numeric'
+    ]);
 
-        $service->update($request->all());
+    $service->update($request->all());
 
-        return redirect()->route('services.index');
-    }
+    $services = ServiceSmsPlus::orderBy('created_at', 'desc')->paginate(10);
+    return Inertia::render('Services/Index', [
+        'services' => $services,
+        'flash' => [
+            'success' => 'Service modifié avec succès.'
+        ]
+    ])->with('url', route('services.index')); // Force l'URL à /services
+}
 
-    public function destroy(ServiceSmsPlus $service)
-    {
-        try {
-            // Supprimer le service
-            $service->delete();
-
-            // Rediriger vers l'index avec un message de succès
-            return redirect()->route('services.index')
-                             ->with('success', 'Service supprimé avec succès');
-        } catch (\Exception $e) {
-            // En cas d'erreur, rediriger avec un message d'erreur
-            return redirect()->route('services.index')
-                             ->with('error', 'Impossible de supprimer le service : ' . $e->getMessage());
-        }
-    }
+   public function destroy(ServiceSmsPlus $service)
+{
+    $service->delete();
+    $services = ServiceSmsPlus::orderBy('created_at', 'desc')->paginate(10);
+    return Inertia::render('Services/Index', [
+        'services' => $services,
+        'flash' => [
+            'success' => 'Service supprimé avec succès.'
+        ]
+    ])->with('url', route('services.index')); // Force l'URL à /services
+}
 }

@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Link, router,usePage } from "@inertiajs/react";
+import React, { useState, useEffect } from "react";
+import { Link, router, usePage } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import {
   PlusIcon,
@@ -10,31 +10,40 @@ import {
 } from "@heroicons/react/24/outline";
 
 export default function Index({ services }) {
-  console.log(usePage().props);
- const { flash } = usePage().props || {};
+  const { flash } = usePage().props;
+  const [showSuccess, setShowSuccess] = useState(!!flash?.success);
+
+  useEffect(() => {
+    if (flash?.success) {
+      setShowSuccess(true);
+      const timer = setTimeout(() => {
+        setShowSuccess(false);
+      }, 5000); // Disparaît après 5 secondes
+      return () => clearTimeout(timer);
+    }
+  }, [flash?.success]);
+
   const [deletingId, setDeletingId] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   function confirmDelete(id) {
-    console.log("confirmDelete reçoit :", id, typeof id); // Pour déboguer
     setDeletingId(id);
     setShowDeleteModal(true);
   }
 
   function deleteService(id) {
-    console.log("deleteService appelé avec :", id, typeof id); // Pour déboguer
     router.post(`/services/${id}`, {
-  _method: "delete",
-}, {
-  preserveScroll: true,
-  onSuccess: () => {
-    setShowDeleteModal(false);
-    setDeletingId(null);
-  },
-  onError: (errors) => {
-    console.error("Erreur lors de la suppression", errors);
-  },
-});
+      _method: "delete",
+    }, {
+      preserveScroll: true,
+      onSuccess: () => {
+        setShowDeleteModal(false);
+        setDeletingId(null);
+      },
+      onError: (errors) => {
+        console.error("Erreur lors de la suppression", errors);
+      },
+    });
   }
 
   return (
@@ -46,17 +55,24 @@ export default function Index({ services }) {
       }
     >
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        {/* Messages flash */}
+        {showSuccess && flash?.success && (
+          <div className="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded flex justify-between items-center">
+            <span>{flash.success}</span>
+            <button
+              onClick={() => setShowSuccess(false)}
+              className="text-green-700 hover:text-green-900 font-bold text-xl"
+            >
+              ×
+            </button>
+          </div>
+        )}
+        {flash?.error && (
+          <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+            {flash.error}
+          </div>
+        )}
 
-  {flash?.success && (
-  <div className="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded">
-    {flash.success}
-  </div>
-  )}
-  {flash?.error && (
-  <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
-    {flash.error}
-  </div>
-)}
         {/* En-tête avec bouton d'ajout */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <h1 className="text-2xl font-semibold text-gray-900">
@@ -149,7 +165,6 @@ export default function Index({ services }) {
               </tbody>
             </table>
           </div>
-          
 
           {/* Pagination */}
           {services.links && services.links.length > 3 && (

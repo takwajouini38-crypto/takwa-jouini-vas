@@ -12,7 +12,7 @@ use App\Http\Controllers\Admin\FtpServerController;
 use App\Http\Controllers\Admin\DbConfigController;
 use App\Http\Controllers\ServiceSmsPlusController;
 
-Route::resource('services',ServiceSmsPlusController::class);
+Route::resource('services', ServiceSmsPlusController::class)->except(['show']);
 
 // Page d'accueil (publique)
 Route::get('/', function () {
