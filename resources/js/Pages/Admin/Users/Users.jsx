@@ -9,30 +9,27 @@ import {
   ChevronRightIcon,
 } from "@heroicons/react/24/outline";
 
-export default function Index({ services }) {
+export default function Users({ users }) {
   const { flash } = usePage().props;
   const [showSuccess, setShowSuccess] = useState(!!flash?.success);
+  const [deletingId, setDeletingId] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
     if (flash?.success) {
       setShowSuccess(true);
-      const timer = setTimeout(() => {
-        setShowSuccess(false);
-      }, 5000); // Disparaît après 5 secondes
+      const timer = setTimeout(() => setShowSuccess(false), 5000);
       return () => clearTimeout(timer);
     }
   }, [flash?.success]);
 
-  const [deletingId, setDeletingId] = useState(null);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-
-  function confirmDelete(id) {
+  const confirmDelete = (id) => {
     setDeletingId(id);
     setShowDeleteModal(true);
-  }
+  };
 
-  function deleteService(id) {
-    router.post(`/services/${id}`, {
+  const deleteUser = () => {
+    router.post(`/admin/users/${deletingId}`, {
       _method: "delete",
     }, {
       preserveScroll: true,
@@ -40,17 +37,15 @@ export default function Index({ services }) {
         setShowDeleteModal(false);
         setDeletingId(null);
       },
-      onError: (errors) => {
-        console.error("Erreur lors de la suppression", errors);
-      },
+      onError: (errors) => console.error("Erreur suppression", errors),
     });
-  }
+  };
 
   return (
     <AuthenticatedLayout
       header={
         <h2 className="text-xl font-semibold leading-tight text-gray-800">
-          Liste des Services
+          Gestion des utilisateurs
         </h2>
       }
     >
@@ -76,14 +71,14 @@ export default function Index({ services }) {
         {/* En-tête avec bouton d'ajout */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <h1 className="text-2xl font-semibold text-gray-900">
-            Liste des Services
+            Liste des utilisateurs
           </h1>
           <Link
-            href="/services/create"
+            href="/admin/users/create"
             className="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-blue-700 active:bg-blue-900 focus:outline-none focus:border-blue-900 focus:ring ring-blue-300 disabled:opacity-25 transition"
           >
             <PlusIcon className="h-4 w-4 mr-2" />
-            Nouveau Service
+            Nouvel utilisateur
           </Link>
         </div>
 
@@ -94,22 +89,19 @@ export default function Index({ services }) {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Nom Service
+                    ID
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Fournisseur
+                    Nom
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Numéro Court
+                    Email
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Keyword
+                    Rôle
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Prix
+                    Date création
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
@@ -117,36 +109,33 @@ export default function Index({ services }) {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {services.data.map((service) => (
-                  <tr key={service.id} className="hover:bg-gray-50 transition">
+                {users.data.map((user) => (
+                  <tr key={user.id} className="hover:bg-gray-50 transition">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {service.nom_service}
+                      {user.id}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {service.nom_fournisseur}
+                      {user.name}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {service.numero_court}
+                      {user.email}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {service.keyword}
+                      {user.role}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {service.type}
+                      {new Date(user.created_at).toLocaleDateString("fr-FR")}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {parseFloat(service.prix).toLocaleString("fr-FR")}
-</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <Link
-                        href={`/services/${service.id}/edit`}
+                        href={`/admin/users/${user.id}/edit`}
                         className="text-indigo-600 hover:text-indigo-900 mr-4 inline-flex items-center"
                       >
                         <PencilIcon className="h-4 w-4 mr-1" />
                         Modifier
                       </Link>
                       <button
-                        onClick={() => confirmDelete(service.id)}
+                        onClick={() => confirmDelete(user.id)}
                         className="text-red-600 hover:text-red-900 inline-flex items-center"
                       >
                         <TrashIcon className="h-4 w-4 mr-1" />
@@ -155,10 +144,10 @@ export default function Index({ services }) {
                     </td>
                   </tr>
                 ))}
-                {services.data.length === 0 && (
+                {users.data.length === 0 && (
                   <tr>
-                    <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
-                      Aucun service trouvé.
+                    <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
+                      Aucun utilisateur trouvé.
                     </td>
                   </tr>
                 )}
@@ -167,16 +156,16 @@ export default function Index({ services }) {
           </div>
 
           {/* Pagination */}
-          {services.links && services.links.length > 3 && (
+          {users.links && users.links.length > 3 && (
             <div className="px-6 py-4 bg-white border-t border-gray-200">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="text-sm text-gray-700">
-                  Affichage de <span className="font-medium">{services.from}</span> à{" "}
-                  <span className="font-medium">{services.to}</span> sur{" "}
-                  <span className="font-medium">{services.total}</span> résultats
+                  Affichage de <span className="font-medium">{users.from}</span> à{" "}
+                  <span className="font-medium">{users.to}</span> sur{" "}
+                  <span className="font-medium">{users.total}</span> résultats
                 </div>
                 <div className="flex space-x-2">
-                  {services.links.map((link, index) => {
+                  {users.links.map((link, index) => {
                     if (!link.url) {
                       return (
                         <span
@@ -186,10 +175,8 @@ export default function Index({ services }) {
                         />
                       );
                     }
-
                     const isPrevious = link.label.includes("Précédent") || link.label.includes("Previous");
                     const isNext = link.label.includes("Suivant") || link.label.includes("Next");
-
                     return (
                       <Link
                         key={index}
@@ -213,7 +200,7 @@ export default function Index({ services }) {
         </div>
       </div>
 
-      {/* Modal de confirmation de suppression */}
+      {/* Modal de confirmation suppression */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
@@ -223,11 +210,7 @@ export default function Index({ services }) {
             >
               <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
             </div>
-
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen">
-              &#8203;
-            </span>
-
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
             <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
               <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                 <div className="sm:flex sm:items-start">
@@ -236,11 +219,11 @@ export default function Index({ services }) {
                   </div>
                   <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
                     <h3 className="text-lg leading-6 font-medium text-gray-900">
-                      Supprimer le service
+                      Supprimer l'utilisateur
                     </h3>
                     <div className="mt-2">
                       <p className="text-sm text-gray-500">
-                        Êtes-vous sûr de vouloir supprimer ce service ? Cette action est irréversible.
+                        Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action est irréversible.
                       </p>
                     </div>
                   </div>
@@ -249,7 +232,7 @@ export default function Index({ services }) {
               <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
                 <button
                   type="button"
-                  onClick={() => deleteService(deletingId)}
+                  onClick={deleteUser}
                   className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm"
                 >
                   Supprimer

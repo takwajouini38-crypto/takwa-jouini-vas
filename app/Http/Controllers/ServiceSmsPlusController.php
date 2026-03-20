@@ -8,40 +8,58 @@ use Inertia\Inertia;
 
 class ServiceSmsPlusController extends Controller
 {
+    // Liste des services
     public function index()
     {
-        $services = ServiceSmsPlus::orderBy('created_at', 'desc')->paginate(10);
+        $services = ServiceSmsPlus::orderBy('created_at', 'asc')->paginate(10);
         return Inertia::render('Services/Index', [
-            'services' => $services
+            'services' => $services,
+            'flash' => session('flash') // Pour afficher les messages de succès
         ]);
     }
 
+    // Formulaire création
     public function create()
     {
         return Inertia::render('Services/Create');
     }
 
-    public function store(Request $request)
+    // Stocker un service
+   public function store(Request $request)
 {
-    $request->validate([
+    // Convertir la virgule en point pour le prix
+    if ($request->has('prix')) {
+        $prix = str_replace(',', '.', $request->prix);
+        $request->merge(['prix' => $prix]);
+    }
+
+    $validated = $request->validate([
         'nom_service' => 'required|string|max:255',
         'nom_fournisseur' => 'required|string|max:255',
-        'numero_court' => 'required',
-        'type' => 'required',
-        'prix' => 'required|numeric'
+        'numero_court' => 'required|digits_between:4,7',
+        'keyword' => 'nullable|string|max:255',
+        'type' => 'required|string|max:255',
+        'prix' => ['required','numeric','min:0','max:10','regex:/^\d+(\.\d{1,2})?$/']
+    ], [
+        'numero_court.required' => 'Le numéro court est obligatoire.',
+        'numero_court.digits_between' => 'Le numéro court doit contenir entre 4 et 7 chiffres.',
+        'prix.min' => 'Le prix doit être positif.',
+        'prix.max' => 'Le prix ne doit pas dépasser 10.',
+        'prix.regex' => 'Le prix doit contenir au maximum 2 décimales.'
     ]);
 
-    ServiceSmsPlus::create($request->all());
+    // Si keyword est vide ou null, on le définit à "_N"
+    if (empty($validated['keyword'])) {
+        $validated['keyword'] = '_N';
+    }
 
-    $services = ServiceSmsPlus::orderBy('created_at', 'desc')->paginate(10);
-    return Inertia::render('Services/Index', [
-        'services' => $services,
-        'flash' => [
-            'success' => 'Service créé avec succès.'
-        ]
-    ])->with('url', route('services.index')); // Force l'URL à /services
+    ServiceSmsPlus::create($validated);
+
+    return redirect()->route('services.index')
+        ->with('flash', ['success' => 'Service créé avec succès.']);
 }
 
+    // Formulaire édition
     public function edit(ServiceSmsPlus $service)
     {
         return Inertia::render('Services/Edit', [
@@ -49,36 +67,47 @@ class ServiceSmsPlusController extends Controller
         ]);
     }
 
-   public function update(Request $request, ServiceSmsPlus $service)
+    // Mettre à jour un service
+    public function update(Request $request, ServiceSmsPlus $service)
 {
-    $request->validate([
+    // Convertir la virgule en point pour le prix
+    if ($request->has('prix')) {
+        $prix = str_replace(',', '.', $request->prix);
+        $request->merge(['prix' => $prix]);
+    }
+
+    $validated = $request->validate([
         'nom_service' => 'required|string|max:255',
         'nom_fournisseur' => 'required|string|max:255',
-        'numero_court' => 'required',
-        'type' => 'required',
-        'prix' => 'required|numeric'
+        'numero_court' => 'required|digits_between:4,7',
+        'keyword' => 'nullable|string|max:255',
+        'type' => 'required|string|max:255',
+        'prix' => ['required','numeric','min:0','max:10','regex:/^\d+(\.\d{1,2})?$/']
+    ], [
+        'numero_court.required' => 'Le numéro court est obligatoire.',
+        'numero_court.digits_between' => 'Le numéro court doit contenir entre 4 et 7 chiffres.',
+        'prix.min' => 'Le prix doit être positif.',
+        'prix.max' => 'Le prix ne doit pas dépasser 10.',
+        'prix.regex' => 'Le prix doit contenir au maximum 2 décimales.'
     ]);
 
-    $service->update($request->all());
+    // Si keyword est vide ou null, on le définit à "_N"
+    if (empty($validated['keyword'])) {
+        $validated['keyword'] = '_N';
+    }
 
-    $services = ServiceSmsPlus::orderBy('created_at', 'desc')->paginate(10);
-    return Inertia::render('Services/Index', [
-        'services' => $services,
-        'flash' => [
-            'success' => 'Service modifié avec succès.'
-        ]
-    ])->with('url', route('services.index')); // Force l'URL à /services
+    $service->update($validated);
+
+    return redirect()->route('services.index')
+        ->with('flash', ['success' => 'Service modifié avec succès.']);
 }
 
-   public function destroy(ServiceSmsPlus $service)
-{
-    $service->delete();
-    $services = ServiceSmsPlus::orderBy('created_at', 'desc')->paginate(10);
-    return Inertia::render('Services/Index', [
-        'services' => $services,
-        'flash' => [
-            'success' => 'Service supprimé avec succès.'
-        ]
-    ])->with('url', route('services.index')); // Force l'URL à /services
-}
+    // Supprimer un service
+    public function destroy(ServiceSmsPlus $service)
+    {
+        $service->delete();
+
+        return redirect()->route('services.index')
+            ->with('flash', ['success' => 'Service supprimé avec succès.']);
+    }
 }

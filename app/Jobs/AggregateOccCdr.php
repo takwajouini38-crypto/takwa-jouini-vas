@@ -20,25 +20,16 @@ class AggregateOccCdr implements ShouldQueue
         DB::statement("
             INSERT INTO RA_T_OCC_AGG
             SELECT
-                B_MSISDN,
-                START_DATE,
-                START_HOUR,
-                EVENT_TYPE,
-                CALL_TYPE,
-                EVENT_STATUS,
-                SUBSCRIBER_TYPE,
-                SERVICE_ID AS SERVICE_TYPE,
-                COUNT(*) AS CDR_COUNT
+                B_MSISDN, START_DATE, START_HOUR, CALL_TYPE, EVENT_TYPE, SUBSCRIBER_TYPE, KEYWORD , COUNT(*) CDR_COUNT,sum(CHARGE_AMOUNT)  CHARGE_AMOUNT
             FROM RA_T_OCC_CDR_DETAIL
             GROUP BY
                 B_MSISDN,
                 START_DATE,
                 START_HOUR,
-                EVENT_TYPE,
                 CALL_TYPE,
-                EVENT_STATUS,
+                EVENT_TYPE,
                 SUBSCRIBER_TYPE,
-                SERVICE_ID
+                KEYWORD
         ");
     }
 }

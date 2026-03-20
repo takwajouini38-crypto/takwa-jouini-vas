@@ -12,7 +12,7 @@ export default function AuthenticatedLayout({ children, title }) {
     // ✅ Navigation selon rôle
     const navigation = [
     { name: 'Dashboard', href: route('dashboard'), roles: ['admin', 'analyst_op', 'analyst_biz'] },
-    { name: 'Utilisateurs', href: route('admin.users.index'), roles: ['admin'] },  // ← corrigé
+    { name: ' Gestion des Utilisateurs', href: route('admin.users.index'), roles: ['admin'] },  // ← corrigé
     { name: 'Gestion FTP', href: route('admin.ftp.index'), roles: ['admin'] },
     { name: 'Gestion Base de Données', href: route('admin.db.index'), roles: ['admin'] },
     { name: 'Dashboard Opérationnel', href: route('dashboard.op'), roles: ['analyst_op'] },

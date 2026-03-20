@@ -12,11 +12,12 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use App\Models\JobTask;
 use Illuminate\Support\Facades\Log;
 
-class LoadOccCdr implements ShouldQueue
+class LoadMmgCdr implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     protected $jobId;
+    protected $batchSize = 1000;
 
     public function __construct($jobId)
     {
@@ -26,48 +27,41 @@ class LoadOccCdr implements ShouldQueue
     public function handle()
     {
         set_time_limit(0);
-
-        Log::info('LoadOccCdr - Début du job pour job ID : ' . $this->jobId);
+        Log::info("Load MMG Optimized - Start job {$this->jobId}");
 
         $jobModel = JobTask::find($this->jobId);
-
         if (!$jobModel) {
-            Log::error('LoadOccCdr - Job introuvable : ' . $this->jobId);
+            Log::error("Job introuvable: {$this->jobId}");
             return;
         }
 
         $disk = Storage::disk('cdr_storage');
-        $files = $disk->files('occ');
+        $files = $disk->files('mmg');
 
-        Log::info('LoadOccCdr - Nombre de fichiers trouvés : ' . count($files));
+        Log::info("Nombre de fichiers MMG: " . count($files));
 
         foreach ($files as $filePath) {
 
             $jobModel->refresh();
+            if ($jobModel->status !== 'running') break;
 
-            if ($jobModel->status !== 'running') {
-                Log::info('LoadOccCdr - Arrêt demandé avant fichier : ' . $filePath);
-                break;
-            }
-
-            if (!str_ends_with($filePath, '.csv')) {
-                Log::info('LoadOccCdr - Fichier ignoré (pas CSV) : ' . $filePath);
-                continue;
-            }
-
-            Log::info('LoadOccCdr - Traitement du fichier : ' . $filePath);
+            if (!str_ends_with($filePath, '.csv')) continue;
 
             $fileFullPath = $disk->path($filePath);
-
             $handle = fopen($fileFullPath, 'r');
 
             if (!$handle) {
-                Log::error('Impossible d\'ouvrir le fichier : ' . $filePath);
+                Log::error("Impossible d'ouvrir le fichier: {$filePath}");
                 continue;
             }
 
-            // Ignorer l'entête
-            fgetcsv($handle, 0, ",");
+            // ✅ Lire header (comme OCC)
+            $header = fgetcsv($handle, 0, ",");
+            if (!$header) {
+                fclose($handle);
+                Log::error("Entête invalide: {$filePath}");
+                continue;
+            }
 
             $batch = [];
             $lineNumber = 0;
@@ -76,155 +70,93 @@ class LoadOccCdr implements ShouldQueue
 
                 $lineNumber++;
 
-                if (count($line) < 10) {
-                    continue;
+                if ($lineNumber % 100 == 0) {
+                    Log::info("Fichier {$filePath} - Ligne $lineNumber traitée");
                 }
 
-                $batch[] = [
+                if (count($line) != count($header)) continue;
 
-                    "B_DATASOURCE" => trim($line[6] ?? null),
+                // ✅ mapping dynamique (comme OCC)
+                $row = [];
+                foreach ($line as $i => $value) {
+                    $row[$header[$i]] = $value;
+                }
 
-                    "A_MSISDN" => trim($line[3] ?? null),
+                $batch[] = $row;
 
-                    "B_MSISDN" => trim($line[8] ?? null),
+                if ($lineNumber % 1000 == 0) {
+                    Log::info("Fichier {$filePath} - $lineNumber lignes traitées");
+                }
 
-                    "PROC_DATE" => trim($line[39] ?? null),
-
-                    "PROC_HOUR" => trim($line[40] ?? null),
-
-                    "APN" => trim($line[1] ?? null),
-
-                    "CALL_TYPE" => trim($line[11] ?? null),
-
-                    "EVENT_TYPE_ORIG" => trim($line[28] ?? null),
-
-                    "SUBSCRIBER_TYPE" => trim($line[56] ?? null),
-
-                    "ROAMING_TYPE" => trim($line[50] ?? null),
-
-                    "PARTNER" => trim($line[35] ?? null),
-
-                    "CHARGE_AMOUNT_ORIG" => is_numeric(str_replace(',', '.', $line[17] ?? null))
-                        ? str_replace(',', '.', $line[17])
-                        : null,
-
-                    "SERVICE_ID" => trim($line[52] ?? null),
-
-                    "ORIG_START_TIME" => trim($line[34] ?? null),
-
-                ];
-
-                if (count($batch) >= 1000) {
-
-                    DB::table("RA_T_TMP_OCC")->insert($batch);
-
+                if (count($batch) >= $this->batchSize) {
+                    DB::table('RA_T_MMG_TMP')->insert($batch);
                     $batch = [];
                 }
             }
 
             if (!empty($batch)) {
-                DB::table("RA_T_TMP_OCC")->insert($batch);
+                DB::table('RA_T_MMG_TMP')->insert($batch);
             }
 
             fclose($handle);
 
-            Log::info("Fichier $filePath traité : $lineNumber lignes insérées dans TMP");
+            Log::info("Fichier {$filePath} terminé: {$lineNumber} lignes insérées dans TMP");
 
             // =========================
-            // TMP → DETAIL
+            // TMP → DETAIL (OPTIMISÉ)
             // =========================
+            DB::statement("
+INSERT INTO RA_T_MMG_CDR_DETAIL (
+    NE,
+    A_MSISDN,
+    B_MSISDN,
+    START_DATE,
+    START_HOUR,
+    EVENT_TYPE,
+    EVENT_TYPE_ORIG,
+    CALL_TYPE,
+    EVENT_STATUS,
+    SUBSCRIBER_TYPE,
+    SERVICE_TYPE,
+    ORIG_START_TIME
+)
+SELECT
+    NE,
+    A_MSISDN,
+    B_MSISDN,
 
-            try {
+    CASE
+        WHEN REGEXP_LIKE(SUBSTR(ORIG_START_TIME,1,8),'^[0-9]{8}$')
+        THEN TO_DATE(SUBSTR(ORIG_START_TIME,1,8),'YYYYMMDD')
+        ELSE NULL
+    END,
 
-                DB::statement("
-                INSERT INTO RA_T_OCC_CDR_DETAIL
-                (
-                    DATASOURCE,
-                    A_MSISDN,
-                    B_MSISDN,
-                    START_DATE,
-                    START_HOUR,
-                    APN,
-                    CALL_TYPE,
-                    EVENT_TYPE,
-                    SUBSCRIBER_TYPE,
-                    ROAMING_TYPE,
-                    PARTNER,
-                    CHARGE_AMOUNT,
-                    KEYWORD,
-                    ORIG_START_TIME
-                )
+    CASE
+        WHEN REGEXP_LIKE(SUBSTR(ORIG_START_TIME,9,2),'^[0-9]{2}$')
+        THEN TO_NUMBER(SUBSTR(ORIG_START_TIME,9,2))
+        ELSE NULL
+    END,
 
-                SELECT
-                    TRIM(B_DATASOURCE),
+    EVENT_TYPE,
+    EVENT_TYPE_ORIG,
+    CALL_TYPE,
+    EVENT_STATUS,
+    SUBSCRIBER_TYPE,
+    SERVICE_TYPE,
+    ORIG_START_TIME
 
-                    TRIM(A_MSISDN),
+FROM RA_T_MMG_TMP
+WHERE A_MSISDN IS NOT NULL
+  AND B_MSISDN IS NOT NULL
+            ");
 
-                    TRIM(B_MSISDN),
-
-                    CASE
-                        WHEN REGEXP_LIKE(SUBSTR(TRIM(ORIG_START_TIME),1,8),'^[0-9]{8}$')
-                        THEN TO_DATE(SUBSTR(TRIM(ORIG_START_TIME),1,8),'YYYYMMDD')
-                        ELSE NULL
-                    END,
-
-                    CASE
-                        WHEN REGEXP_LIKE(SUBSTR(TRIM(PROC_HOUR),1,2),'^[0-9]{1,2}$')
-                        THEN TO_NUMBER(SUBSTR(TRIM(PROC_HOUR),1,2))
-                        ELSE NULL
-                    END,
-
-                    TRIM(APN),
-
-                    TRIM(CALL_TYPE),
-
-                    74,
-
-                    SUBSTR(TRIM(SUBSCRIBER_TYPE),1,20),
-
-                    SUBSTR(TRIM(ROAMING_TYPE),1,10),
-
-                    SUBSTR(TRIM(PARTNER),1,50),
-
-                    CASE
-                        WHEN REGEXP_LIKE(CHARGE_AMOUNT_ORIG,'^[0-9]+(\.[0-9]+)?$')
-                        THEN ROUND(TO_NUMBER(CHARGE_AMOUNT_ORIG),2)
-                        ELSE NULL
-                    END,
-
-                    SUBSTR(TRIM(SERVICE_ID),1,50),
-
-                    TRIM(ORIG_START_TIME)
-
-                FROM RA_T_TMP_OCC
-
-                WHERE
-                    TRIM(A_MSISDN) IS NOT NULL
-                    AND TRIM(B_MSISDN) IS NOT NULL
-                ");
-
-                Log::info("Insertion TMP → DETAIL terminée");
-
-            } catch (\Exception $e) {
-
-                Log::error("Erreur TMP → DETAIL dans le fichier $filePath : " . $e->getMessage());
-
-                throw $e;
-            }
-
-            // =========================
             // Nettoyage TMP
-            // =========================
+            DB::statement("TRUNCATE TABLE RA_T_MMG_TMP");
 
-            DB::statement("TRUNCATE TABLE RA_T_TMP_OCC");
-
-            // =========================
-            // Déplacer fichier traité
-            // =========================
-
-            $disk->move($filePath, 'occ/processed/' . basename($filePath));
+            // Déplacer fichier
+            $disk->move($filePath, 'mmg/processed/' . basename($filePath));
         }
 
-        Log::info('LoadOccCdr - Fin du job pour job ID : ' . $this->jobId);
+        Log::info("Load MMG Optimized - Fin job {$this->jobId}");
     }
 }

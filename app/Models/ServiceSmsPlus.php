@@ -16,4 +16,7 @@ class ServiceSmsPlus extends Model
         'type',
         'prix'
     ];
+    protected $casts = [
+        'prix' => 'float',
+    ];
 }

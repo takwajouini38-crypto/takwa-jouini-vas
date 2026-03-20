@@ -39,8 +39,9 @@ Route::middleware('auth')->group(function () {
 // Routes réservées aux administrateurs (rôle 'admin')
 Route::middleware(['auth', 'checkrole:admin'])->prefix('admin')->name('admin.')->group(function () {
     // Gestion des utilisateurs
-    Route::get('/users', [UserController::class, 'index'])->name('users.index');
-    Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+    /*Route::get('/users', [UserController::class, 'index'])->name('users.index');
+    Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');*/
+    Route::resource('users', UserController::class);
 
     // Gestion des serveurs FTP
     Route::resource('ftp', FtpServerController::class)->except(['show']);

@@ -116,7 +116,7 @@ SELECT
     END,
     APN,
     CALL_TYPE,
-    74,
+    EVENT_TYPE,
     SUBSCRIBER_TYPE,
     ROAMING_TYPE,
     PARTNER,

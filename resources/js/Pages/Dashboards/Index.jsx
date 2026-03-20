@@ -15,7 +15,7 @@ import {
     Legend,
     Filler
 } from "chart.js";
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+
 
 // ... ton composant
 
