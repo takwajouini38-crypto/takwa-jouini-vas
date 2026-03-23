@@ -17,7 +17,7 @@ class LoadOccCdr implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     protected $jobId;
-    protected $batchSize = 1000; // Ajustable selon mémoire
+    protected $batchSize = 1000;
 
     public function __construct($jobId)
     {
@@ -27,75 +27,65 @@ class LoadOccCdr implements ShouldQueue
     public function handle()
     {
         set_time_limit(0);
-        Log::info("Load OCC Optimized - Start job {$this->jobId}");
+
+        Log::info("Load OCC - Start job {$this->jobId}");
 
         $jobModel = JobTask::find($this->jobId);
+
         if (!$jobModel) {
             Log::error("Job introuvable: {$this->jobId}");
             return;
         }
 
-        $disk = Storage::disk('cdr_storage');
-        $files = $disk->files('occ');
-        Log::info("Nombre de fichiers OCC: " . count($files));
+        try {
 
-        foreach ($files as $filePath) {
-            $jobModel->refresh();
-            if ($jobModel->status !== 'running') break;
+            $disk = Storage::disk('cdr_storage');
+            $files = $disk->files('occ');
 
-            if (!str_ends_with($filePath, '.csv')) continue;
+            foreach ($files as $filePath) {
 
-            $fileFullPath = $disk->path($filePath);
-            $handle = fopen($fileFullPath, 'r');
-            if (!$handle) {
-                Log::error("Impossible d'ouvrir le fichier: {$filePath}");
-                continue;
-            }
+                $jobModel->refresh();
+                if ($jobModel->status !== 'running') break;
 
-            // Lire entête
-            $header = fgetcsv($handle, 0, ",");
-            if (!$header || count($header) < 65) {
-                fclose($handle);
-                Log::error("Entête invalide: {$filePath}");
-                continue;
-            }
+                if (!str_ends_with($filePath, '.csv')) continue;
 
-            $batch = [];
-            $lineNumber = 0;
+                $fileFullPath = $disk->path($filePath);
+                $handle = fopen($fileFullPath, 'r');
 
-            while (($line = fgetcsv($handle, 0, ",")) !== false) {
-                $lineNumber++;
-                if ($lineNumber % 100 == 0) {
-    Log::info("Fichier {$filePath} - Ligne $lineNumber traitée");
-}
-                if (count($line) != count($header)) continue;
+                if (!$handle) continue;
 
-                // Ajouter toutes les colonnes en batch
-                $row = [];
-                foreach ($line as $i => $value) {
-                    $row[$header[$i]] = $value; // trim seulement si nécessaire
+                $header = fgetcsv($handle, 0, ",");
+                if (!$header) {
+                    fclose($handle);
+                    continue;
                 }
-                $batch[] = $row;
-                // Log de progression toutes les 1000 lignes
-    if ($lineNumber % 1000 == 0) {
-        Log::info("Fichier {$filePath} - Ligne $lineNumber traitée");
-    }
 
-                if (count($batch) >= $this->batchSize) {
+                $batch = [];
+
+                while (($line = fgetcsv($handle, 0, ",")) !== false) {
+
+                    if (count($line) != count($header)) continue;
+
+                    $row = [];
+                    foreach ($line as $i => $value) {
+                        $row[$header[$i]] = $value;
+                    }
+
+                    $batch[] = $row;
+
+                    if (count($batch) >= $this->batchSize) {
+                        DB::table('RA_T_TMP_OCC')->insert($batch);
+                        $batch = [];
+                    }
+                }
+
+                if (!empty($batch)) {
                     DB::table('RA_T_TMP_OCC')->insert($batch);
-                    $batch = [];
                 }
-            }
 
-            if (!empty($batch)) {
-                DB::table('RA_T_TMP_OCC')->insert($batch);
-            }
+                fclose($handle);
 
-            fclose($handle);
-            Log::info("Fichier {$filePath} traité: {$lineNumber} lignes insérées dans TMP");
-
-            // TMP → DETAIL (optimisé sans trim répétitif)
-            DB::statement("
+                DB::statement("
 INSERT INTO RA_T_OCC_CDR_DETAIL (
     DATASOURCE, A_MSISDN, B_MSISDN, START_DATE, START_HOUR, APN, CALL_TYPE,
     EVENT_TYPE, SUBSCRIBER_TYPE, ROAMING_TYPE, PARTNER, CHARGE_AMOUNT, KEYWORD, ORIG_START_TIME
@@ -129,15 +119,28 @@ SELECT
     ORIG_START_TIME
 FROM RA_T_TMP_OCC
 WHERE A_MSISDN IS NOT NULL AND B_MSISDN IS NOT NULL
-            ");
+                ");
 
-            // Nettoyer TMP
-            DB::statement("TRUNCATE TABLE RA_T_TMP_OCC");
+                DB::statement("TRUNCATE TABLE RA_T_TMP_OCC");
 
-            // Déplacer le fichier
-            $disk->move($filePath, 'occ/processed/' . basename($filePath));
+                $disk->move($filePath, 'occ/processed/' . basename($filePath));
+            }
+
+            $jobModel->update([
+                'status' => 'stopped',
+                'finished_at' => now()
+            ]);
+
+            Log::info("Load OCC - Fin job {$this->jobId}");
+
+        } catch (\Exception $e) {
+
+            $jobModel->update([
+                'status' => 'failed',
+                'finished_at' => now()
+            ]);
+
+            Log::error("Erreur Load OCC : " . $e->getMessage());
         }
-
-        Log::info("Load OCC Optimized - Fin job {$this->jobId}");
     }
 }

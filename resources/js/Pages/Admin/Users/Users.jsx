@@ -7,14 +7,20 @@ import {
   TrashIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  MagnifyingGlassIcon,
 } from "@heroicons/react/24/outline";
 
-export default function Users({ users }) {
+export default function Users({ users, filters }) {
   const { flash } = usePage().props;
+
   const [showSuccess, setShowSuccess] = useState(!!flash?.success);
   const [deletingId, setDeletingId] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
+  // 🔍 Recherche
+  const [search, setSearch] = useState(filters?.search || "");
+
+  // Message succès
   useEffect(() => {
     if (flash?.success) {
       setShowSuccess(true);
@@ -23,228 +29,208 @@ export default function Users({ users }) {
     }
   }, [flash?.success]);
 
+  // 🔍 Recherche dynamique (debounce)
+  useEffect(() => {
+    const delay = setTimeout(() => {
+      router.get(
+        "/admin/users",
+        { search },
+        {
+          preserveState: true,
+          replace: true,
+        }
+      );
+    }, 500);
+
+    return () => clearTimeout(delay);
+  }, [search]);
+
+  // Supprimer
   const confirmDelete = (id) => {
     setDeletingId(id);
     setShowDeleteModal(true);
   };
 
   const deleteUser = () => {
-    router.post(`/admin/users/${deletingId}`, {
-      _method: "delete",
-    }, {
-      preserveScroll: true,
-      onSuccess: () => {
-        setShowDeleteModal(false);
-        setDeletingId(null);
-      },
-      onError: (errors) => console.error("Erreur suppression", errors),
-    });
+    router.post(
+      `/admin/users/${deletingId}`,
+      { _method: "delete" },
+      {
+        preserveScroll: true,
+        onSuccess: () => {
+          setShowDeleteModal(false);
+          setDeletingId(null);
+        },
+      }
+    );
   };
 
   return (
     <AuthenticatedLayout
       header={
-        <h2 className="text-xl font-semibold leading-tight text-gray-800">
+        <h2 className="text-xl font-semibold text-gray-800">
           Gestion des utilisateurs
         </h2>
       }
     >
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        {/* Messages flash */}
+        {/* Messages */}
         {showSuccess && flash?.success && (
-          <div className="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded flex justify-between items-center">
+          <div className="mb-4 p-4 bg-green-100 border text-green-700 rounded flex justify-between">
             <span>{flash.success}</span>
-            <button
-              onClick={() => setShowSuccess(false)}
-              className="text-green-700 hover:text-green-900 font-bold text-xl"
-            >
-              ×
-            </button>
-          </div>
-        )}
-        {flash?.error && (
-          <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
-            {flash.error}
+            <button onClick={() => setShowSuccess(false)}>×</button>
           </div>
         )}
 
-        {/* En-tête avec bouton d'ajout */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-          <h1 className="text-2xl font-semibold text-gray-900">
-            Liste des utilisateurs
-          </h1>
+        {/* Header */}
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-semibold">Liste des utilisateurs</h1>
+
           <Link
             href="/admin/users/create"
-            className="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-blue-700 active:bg-blue-900 focus:outline-none focus:border-blue-900 focus:ring ring-blue-300 disabled:opacity-25 transition"
+            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
           >
             <PlusIcon className="h-4 w-4 mr-2" />
-            Nouvel utilisateur
+            Ajouter
           </Link>
         </div>
 
-        {/* Tableau */}
-        <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Nom
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Email
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Rôle
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date création
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {users.data.map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50 transition">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {user.id}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {user.name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {user.email}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {user.role}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {new Date(user.created_at).toLocaleDateString("fr-FR")}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <Link
-                        href={`/admin/users/${user.id}/edit`}
-                        className="text-indigo-600 hover:text-indigo-900 mr-4 inline-flex items-center"
-                      >
-                        <PencilIcon className="h-4 w-4 mr-1" />
-                        Modifier
-                      </Link>
-                      <button
-                        onClick={() => confirmDelete(user.id)}
-                        className="text-red-600 hover:text-red-900 inline-flex items-center"
-                      >
-                        <TrashIcon className="h-4 w-4 mr-1" />
-                        Supprimer
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {users.data.length === 0 && (
-                  <tr>
-                    <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
-                      Aucun utilisateur trouvé.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+        {/* 🔍 Recherche avec icône */}
+        <div className="mb-4 flex items-center gap-4">
+          <div className="relative w-1/3">
+            {/* Icône */}
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
+            </div>
+
+            {/* Input */}
+            <input
+              type="text"
+              placeholder="Rechercher par nom, email ou rôle..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+            />
           </div>
 
-          {/* Pagination */}
-          {users.links && users.links.length > 3 && (
-            <div className="px-6 py-4 bg-white border-t border-gray-200">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div className="text-sm text-gray-700">
-                  Affichage de <span className="font-medium">{users.from}</span> à{" "}
-                  <span className="font-medium">{users.to}</span> sur{" "}
-                  <span className="font-medium">{users.total}</span> résultats
-                </div>
-                <div className="flex space-x-2">
-                  {users.links.map((link, index) => {
-                    if (!link.url) {
-                      return (
-                        <span
-                          key={index}
-                          className="px-3 py-1 text-gray-500 cursor-default"
-                          dangerouslySetInnerHTML={{ __html: link.label }}
-                        />
-                      );
-                    }
-                    const isPrevious = link.label.includes("Précédent") || link.label.includes("Previous");
-                    const isNext = link.label.includes("Suivant") || link.label.includes("Next");
-                    return (
-                      <Link
-                        key={index}
-                        href={link.url}
-                        className={`inline-flex items-center px-3 py-1 rounded-md text-sm ${
-                          link.active
-                            ? "bg-blue-600 text-white"
-                            : "bg-white text-gray-700 hover:bg-gray-50"
-                        } border border-gray-300`}
-                      >
-                        {isPrevious && <ChevronLeftIcon className="h-4 w-4 mr-1" />}
-                        <span dangerouslySetInnerHTML={{ __html: link.label }} />
-                        {isNext && <ChevronRightIcon className="h-4 w-4 ml-1" />}
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
+          {/* Reset */}
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition"
+            >
+              Reset
+            </button>
           )}
+        </div>
+
+        {/* Tableau */}
+        <div className="bg-white shadow rounded-lg overflow-hidden">
+          <table className="min-w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs">ID</th>
+                <th className="px-6 py-3 text-left text-xs">Nom</th>
+                <th className="px-6 py-3 text-left text-xs">Email</th>
+                <th className="px-6 py-3 text-left text-xs">Rôle</th>
+                <th className="px-6 py-3 text-left text-xs">Date</th>
+                <th className="px-6 py-3 text-left text-xs">Actions</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {users.data.map((user) => (
+                <tr key={user.id} className="border-t hover:bg-gray-50 transition">
+                  <td className="px-6 py-4">{user.id}</td>
+                  <td className="px-6 py-4">{user.name}</td>
+                  <td className="px-6 py-4">{user.email}</td>
+                  <td className="px-6 py-4">{user.role}</td>
+                  <td className="px-6 py-4">
+                    {new Date(user.created_at).toLocaleDateString()}
+                  </td>
+
+                  <td className="px-6 py-4">
+                    <Link
+                      href={`/admin/users/${user.id}/edit`}
+                      className="text-blue-600 mr-3 hover:underline"
+                    >
+                      <PencilIcon className="h-4 w-4 inline mr-1" />
+                      Edit
+                    </Link>
+
+                    <button
+                      onClick={() => confirmDelete(user.id)}
+                      className="text-red-600 hover:underline"
+                    >
+                      <TrashIcon className="h-4 w-4 inline mr-1" />
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+
+              {users.data.length === 0 && (
+                <tr>
+                  <td colSpan="6" className="text-center py-4 text-gray-500">
+                    Aucun utilisateur trouvé
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+
+          {/* Pagination */}
+          <div className="p-4 flex flex-wrap gap-2">
+            {users.links.map((link, index) =>
+              link.url ? (
+                <Link
+                  key={index}
+                  href={link.url}
+                  className={`px-3 py-1 border rounded ${
+                    link.active
+                      ? "bg-blue-600 text-white"
+                      : "bg-white text-gray-700 hover:bg-gray-100"
+                  }`}
+                  dangerouslySetInnerHTML={{ __html: link.label }}
+                />
+              ) : (
+                <span
+                  key={index}
+                  className="px-3 py-1 text-gray-400"
+                  dangerouslySetInnerHTML={{ __html: link.label }}
+                />
+              )
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Modal de confirmation suppression */}
+      {/* Modal suppression */}
       {showDeleteModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-            <div
-              className="fixed inset-0 transition-opacity"
-              onClick={() => setShowDeleteModal(false)}
-            >
-              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
-            </div>
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div className="sm:flex sm:items-start">
-                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
-                    <TrashIcon className="h-6 w-6 text-red-600" />
-                  </div>
-                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900">
-                      Supprimer l'utilisateur
-                    </h3>
-                    <div className="mt-2">
-                      <p className="text-sm text-gray-500">
-                        Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action est irréversible.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                <button
-                  type="button"
-                  onClick={deleteUser}
-                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm"
-                >
-                  Supprimer
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowDeleteModal(false)}
-                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                >
-                  Annuler
-                </button>
-              </div>
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+            <h2 className="text-lg font-semibold mb-4">
+              Confirmer la suppression
+            </h2>
+
+            <p className="text-gray-600 mb-4">
+              Êtes-vous sûr de vouloir supprimer cet utilisateur ?
+            </p>
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2 bg-gray-300 rounded-md hover:bg-gray-400"
+              >
+                Annuler
+              </button>
+
+              <button
+                onClick={deleteUser}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+              >
+                Supprimer
+              </button>
             </div>
           </div>
         </div>

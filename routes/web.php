@@ -38,6 +38,8 @@ Route::middleware('auth')->group(function () {
 
 // Routes réservées aux administrateurs (rôle 'admin')
 Route::middleware(['auth', 'checkrole:admin'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/users/check-email', [UserController::class, 'checkEmail'])
+    ->name('users.checkEmail');
     // Gestion des utilisateurs
     /*Route::get('/users', [UserController::class, 'index'])->name('users.index');
     Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');*/

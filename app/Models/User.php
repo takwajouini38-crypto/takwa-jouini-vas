@@ -9,25 +9,20 @@ use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
 
     /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
+     * Les attributs pouvant être remplis en masse.
      */
     protected $fillable = [
-    'name',
-    'email',
-    'password',
-    'role',
-];
+        'name',
+        'email',
+        'password',
+        'role', // utile si tu gères admin / user / technicien
+    ];
 
     /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
+     * Les attributs à cacher lors de la sérialisation.
      */
     protected $hidden = [
         'password',
@@ -35,15 +30,26 @@ class User extends Authenticatable
     ];
 
     /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
+     * Cast des attributs.
      */
     protected function casts(): array
     {
         return [
             'email_verified_at' => 'datetime',
-            'password' => 'hashed',
+            'password' => 'hashed', // Laravel 12: hash automatique
         ];
+    }
+
+    /**
+     * Exemple helper rôle admin
+     */
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+
+    public function isTechnician(): bool
+    {
+        return $this->role === 'technician';
     }
 }

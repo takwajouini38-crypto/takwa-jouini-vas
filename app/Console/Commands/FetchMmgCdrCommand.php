@@ -12,57 +12,34 @@ class FetchMmgCdrCommand extends Command
     protected $signature = 'mmg:fetch-cdr {--job-id=}';
     protected $description = 'Récupère les fichiers CDR MMG depuis le FTP';
 
-    public function handle()
-    {
-        $jobId = $this->option('job-id');
+   public function handle()
+{
+    $jobId = $this->option('job-id');
 
-        if (!$jobId) {
-            $this->error('Option --job-id requise.');
-            return 1;
-        }
-
-        $jobModel = JobTask::find($jobId);
-
-        if (!$jobModel) {
-            $this->error('Job non trouvé.');
-            return 1;
-        }
-
-        try {
-
-            $jobModel->update([
-                'status' => 'running',
-                'started_at' => now()
-            ]);
-
-            Log::info("Fetch MMG - Début job ID : $jobId");
-
-            // Exécution directe du job
-            $job = new FetchMmgCdr();
-            $job->handle();
-
-            $jobModel->update([
-                'status' => 'stopped',
-                'finished_at' => now()
-            ]);
-
-            Log::info("Fetch MMG - Fin job ID : $jobId");
-
-            $this->info('Job exécuté avec succès');
-
-        } catch (\Exception $e) {
-
-            $jobModel->update([
-                'status' => 'failed',
-                'finished_at' => now()
-            ]);
-
-            Log::error("Erreur Fetch MMG : " . $e->getMessage());
-
-            $this->error($e->getMessage());
-            return 1;
-        }
-
-        return 0;
+    if (!$jobId) {
+        $this->error('Option --job-id requise.');
+        return 1;
     }
+
+    $jobModel = \App\Models\JobTask::find($jobId);
+
+    if (!$jobModel) {
+        $this->error('Job non trouvé.');
+        return 1;
+    }
+
+    $jobModel->update([
+        'status' => 'running',
+        'started_at' => now()
+    ]);
+
+    \Log::info("Dispatch Fetch MMG job ID : $jobId");
+
+    // ✅ QUEUE
+    \App\Jobs\FetchMmgCdr::dispatch();
+
+    $this->info('Fetch envoyé en queue');
+
+    return 0;
+}
 }

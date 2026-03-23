@@ -8,6 +8,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Support\Facades\Log;
 
 class FetchOccCdr implements ShouldQueue
 {
@@ -15,26 +16,34 @@ class FetchOccCdr implements ShouldQueue
 
     public function handle()
     {
-        $sourceFtp = Storage::disk('ftp_local');
-        $localFtp  = Storage::disk('cdr_storage');
+        Log::info("Fetch OCC - Start");
 
-        $files = $sourceFtp->files('occ');
+        try {
 
-        foreach ($files as $filePath) {
+            $sourceFtp = Storage::disk('ftp_local');
+            $localFtp  = Storage::disk('cdr_storage');
 
-            if (!str_ends_with($filePath, '.csv')) continue;
+            $files = $sourceFtp->files('occ');
 
-            $filename = basename($filePath);
+            foreach ($files as $filePath) {
 
-            $content = $sourceFtp->get($filePath);
+                if (!str_ends_with($filePath, '.csv')) continue;
 
-            $localFtp->put('occ/' . $filename, $content);
+                $filename = basename($filePath);
 
-          // Déplacer vers dossier processed
-            $sourceFtp->move(
-                'occ/' . $filename,
-                'occ/processed/' . $filename
-            );
+                $content = $sourceFtp->get($filePath);
+                $localFtp->put('occ/' . $filename, $content);
+
+                $sourceFtp->move(
+                    'occ/' . $filename,
+                    'occ/processed/' . $filename
+                );
+            }
+
+            Log::info("Fetch OCC - End");
+
+        } catch (\Exception $e) {
+            Log::error("Erreur Fetch OCC : " . $e->getMessage());
         }
     }
 }

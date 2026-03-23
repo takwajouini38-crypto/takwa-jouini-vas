@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Log;
 class LoadOccCdrCommand extends Command
 {
     protected $signature = 'occ:load-cdr {--job-id=}';
-    protected $description = 'Charge les CDR OCC dans la base';
+    protected $description = 'Charge les fichiers CDR OCC vers Oracle';
 
     public function handle()
     {
@@ -29,34 +29,30 @@ class LoadOccCdrCommand extends Command
         }
 
         try {
-            // Marquer le job comme running
+
             $jobModel->update([
                 'status' => 'running',
                 'started_at' => now()
             ]);
 
-            Log::info("Load OCC - Début job ID : $jobId");
+            Log::info("Load OCC - Dispatch job ID : $jobId");
 
-            // Passer le jobId au constructeur
-            $job = new LoadOccCdr($jobId);
-            $job->handle();
+            // ✅ QUEUE
+            LoadOccCdr::dispatch($jobId);
 
-            // Marquer le job comme terminé
-            $jobModel->update([
-                'status' => 'stopped',
-                'finished_at' => now()
-            ]);
-
-            Log::info("Load OCC - Fin job ID : $jobId");
+            $this->info('Load OCC envoyé en queue');
 
         } catch (\Exception $e) {
-            // Marquer le job comme failed en cas d'erreur
+
             $jobModel->update([
                 'status' => 'failed',
                 'finished_at' => now()
             ]);
 
             Log::error("Erreur Load OCC : " . $e->getMessage());
+
+            $this->error($e->getMessage());
+            return 1;
         }
 
         return 0;

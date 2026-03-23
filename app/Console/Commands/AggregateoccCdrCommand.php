@@ -7,10 +7,10 @@ use App\Jobs\AggregateOccCdr;
 use App\Models\JobTask;
 use Illuminate\Support\Facades\Log;
 
-class AggregateoccCdrCommand extends Command
+class AggregateOccCdrCommand extends Command
 {
     protected $signature = 'occ:agg {--job-id=}';
-    protected $description = 'Agrège les CDR OCC dans la table AGG';
+    protected $description = 'Agrège les CDR OCC';
 
     public function handle()
     {
@@ -29,27 +29,21 @@ class AggregateoccCdrCommand extends Command
         }
 
         try {
+
             $jobModel->update([
                 'status' => 'running',
                 'started_at' => now()
             ]);
 
-            Log::info("Aggregate OCC - Début job ID : $jobId");
+            Log::info("Aggregate OCC - Dispatch job ID : $jobId");
 
-            // Exécution directe du job OCC
-            $job = new AggregateOccCdr();
-            $job->handle();
+            // ✅ QUEUE
+            AggregateOccCdr::dispatch($jobId);
 
-            $jobModel->update([
-                'status' => 'stopped',
-                'finished_at' => now()
-            ]);
-
-            Log::info("Aggregate OCC - Fin job ID : $jobId");
-
-            $this->info('Job d’agrégation OCC exécuté avec succès');
+            $this->info('Aggregate OCC envoyé en queue');
 
         } catch (\Exception $e) {
+
             $jobModel->update([
                 'status' => 'failed',
                 'finished_at' => now()

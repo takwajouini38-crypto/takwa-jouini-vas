@@ -35,20 +35,12 @@ class FetchOccCdrCommand extends Command
                 'started_at' => now()
             ]);
 
-            Log::info("Fetch OCC - Début job ID : $jobId");
+            Log::info("Fetch OCC - Dispatch job ID : $jobId");
 
-            // Exécution du job
-            $job = new FetchOccCdr();
-            $job->handle();
+            // ✅ QUEUE
+            FetchOccCdr::dispatch();
 
-            $jobModel->update([
-                'status' => 'stopped',
-                'finished_at' => now()
-            ]);
-
-            Log::info("Fetch OCC - Fin job ID : $jobId");
-
-            $this->info('Job OCC exécuté avec succès');
+            $this->info('Fetch OCC envoyé en queue');
 
         } catch (\Exception $e) {
 
