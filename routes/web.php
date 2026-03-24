@@ -8,9 +8,10 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\JobTaskActionController;
 use App\Http\Controllers\JobTaskController;
-use App\Http\Controllers\Admin\FtpServerController;
 use App\Http\Controllers\Admin\DbConfigController;
 use App\Http\Controllers\ServiceSmsPlusController;
+use App\Http\Controllers\Admin\FtpSettingController;
+use App\Http\Controllers\DashboardController;
 
 Route::resource('services', ServiceSmsPlusController::class)->except(['show']);
 
@@ -24,11 +25,9 @@ Route::get('/', function () {
     ]);
 });
 
-// Dashboard général (accessible à tout utilisateur connecté et vérifié)
-Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
-
+Route::get('/dashboard', [DashboardController::class, 'index'])
+    ->middleware(['auth', 'verified', 'checkrole:admin'])
+    ->name('dashboard');
 // Routes pour tous les utilisateurs connectés (profil)
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -41,14 +40,16 @@ Route::middleware(['auth', 'checkrole:admin'])->prefix('admin')->name('admin.')-
     Route::get('/users/check-email', [UserController::class, 'checkEmail'])
     ->name('users.checkEmail');
     // Gestion des utilisateurs
-    /*Route::get('/users', [UserController::class, 'index'])->name('users.index');
-    Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');*/
     Route::resource('users', UserController::class);
+    Route::get('/ftp', [FtpSettingController::class, 'index'])->name('ftp.index');
+    Route::post('/ftp', [FtpSettingController::class, 'store'])->name('ftp.store');
+    Route::put('/ftp/{id}', [FtpSettingController::class, 'update'])->name('ftp.update');
+    Route::delete('/ftp/{id}', [FtpSettingController::class, 'destroy'])->name('ftp.destroy');
 
-    // Gestion des serveurs FTP
-    Route::resource('ftp', FtpServerController::class)->except(['show']);
-    Route::post('ftp/test-connection', [FtpServerController::class, 'testConnection'])->name('ftp.test');
+Route::post('/ftp/{id}/active', [FtpSettingController::class, 'setActive'])->name('ftp.active');
+Route::post('/ftp/test', [FtpSettingController::class, 'testConnection'])->name('ftp.test');
 
+    
     // Gestion de la configuration de la base de données
     Route::get('db', [DbConfigController::class, 'index'])->name('db.index');
     Route::post('db', [DbConfigController::class, 'storeOrUpdate'])->name('db.store');
