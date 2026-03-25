@@ -24,15 +24,34 @@ class AggregateOccCdr implements ShouldQueue
 
     public function handle()
     {
-        Log::info("Aggregate OCC - Start job {$this->jobId}");
+        set_time_limit(0);
+
+        Log::info("=== START AGGREGATE OCC [ID: {$this->jobId}] ===");
 
         $jobModel = JobTask::find($this->jobId);
 
-        if (!$jobModel) return;
+        if (!$jobModel) {
+            Log::error("Job introuvable");
+            return;
+        }
 
         try {
 
+            // 🔴 CHECK AVANT TRUNCATE
+            $jobModel->refresh();
+            if ($jobModel->status !== 'running') {
+                Log::warning("Job stoppé avant TRUNCATE");
+                return;
+            }
+
             DB::statement("TRUNCATE TABLE RA_T_OCC_AGG");
+
+            // 🔴 CHECK AVANT INSERT
+            $jobModel->refresh();
+            if ($jobModel->status !== 'running') {
+                Log::warning("Job stoppé avant INSERT");
+                return;
+            }
 
             DB::statement("
 INSERT INTO RA_T_OCC_AGG
@@ -57,12 +76,17 @@ GROUP BY
     KEYWORD
             ");
 
-            $jobModel->update([
-                'status' => 'stopped',
-                'finished_at' => now()
-            ]);
+            // ✅ FIN PROPRE
+            $jobModel->refresh();
 
-            Log::info("Aggregate OCC - Fin job {$this->jobId}");
+            if ($jobModel->status === 'running') {
+                $jobModel->update([
+                    'status' => 'success',
+                    'finished_at' => now()
+                ]);
+            }
+
+            Log::info("=== END AGGREGATE OCC SUCCESS ===");
 
         } catch (\Exception $e) {
 

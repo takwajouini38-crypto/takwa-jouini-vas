@@ -6,6 +6,7 @@ use Illuminate\Console\Command;
 use App\Jobs\FetchOccCdr;
 use App\Models\JobTask;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class FetchOccCdrCommand extends Command
 {
@@ -29,28 +30,31 @@ class FetchOccCdrCommand extends Command
         }
 
         try {
-
+            // ✅ Mise à jour du statut initial
             $jobModel->update([
                 'status' => 'running',
                 'started_at' => now()
             ]);
+            
+            // On valide pour Oracle
+            DB::commit();
 
             Log::info("Fetch OCC - Dispatch job ID : $jobId");
 
-            // ✅ QUEUE
-            FetchOccCdr::dispatch();
+            // ✅ CORRECTION CRITIQUE : On passe $jobId au Job ici !
+            FetchOccCdr::dispatch($jobId);
 
-            $this->info('Fetch OCC envoyé en queue');
+            $this->info("Job $jobId envoyé en queue avec succès.");
 
         } catch (\Exception $e) {
-
+            // ✅ Correction ORA-00904 : On retire finished_at
             $jobModel->update([
-                'status' => 'failed',
-                'finished_at' => now()
+                'status' => 'failed'
             ]);
+            
+            DB::commit();
 
-            Log::error("Erreur Fetch OCC : " . $e->getMessage());
-
+            Log::error("Erreur Dispatch Fetch OCC : " . $e->getMessage());
             $this->error($e->getMessage());
             return 1;
         }

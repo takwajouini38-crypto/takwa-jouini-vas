@@ -41,11 +41,15 @@ class LoadOccCdr implements ShouldQueue
 
             $disk = Storage::disk('cdr_storage');
             $files = $disk->files('occ');
-
+               Log::info("Nombre de fichiers trouvés : " . count($files));
             foreach ($files as $filePath) {
 
+                // 🔴 STOP AVANT CHAQUE FICHIER
                 $jobModel->refresh();
-                if ($jobModel->status !== 'running') break;
+                if ($jobModel->status !== 'running') {
+                    Log::warning("Job stoppé avant traitement fichier");
+                    return;
+                }
 
                 if (!str_ends_with($filePath, '.csv')) continue;
 
@@ -55,6 +59,7 @@ class LoadOccCdr implements ShouldQueue
                 if (!$handle) continue;
 
                 $header = fgetcsv($handle, 0, ",");
+
                 if (!$header) {
                     fclose($handle);
                     continue;
@@ -63,6 +68,14 @@ class LoadOccCdr implements ShouldQueue
                 $batch = [];
 
                 while (($line = fgetcsv($handle, 0, ",")) !== false) {
+
+                    // 🔴 STOP PENDANT LECTURE
+                    $jobModel->refresh();
+                    if ($jobModel->status !== 'running') {
+                        Log::warning("Job stoppé pendant lecture !");
+                        fclose($handle);
+                        return;
+                    }
 
                     if (count($line) != count($header)) continue;
 
@@ -77,6 +90,9 @@ class LoadOccCdr implements ShouldQueue
                         DB::table('RA_T_TMP_OCC')->insert($batch);
                         $batch = [];
                     }
+
+                    // 🔥 rend le STOP plus réactif
+                    usleep(100000);
                 }
 
                 if (!empty($batch)) {
@@ -84,6 +100,13 @@ class LoadOccCdr implements ShouldQueue
                 }
 
                 fclose($handle);
+
+                // 🔴 STOP AVANT INSERT ORACLE
+                $jobModel->refresh();
+                if ($jobModel->status !== 'running') {
+                    Log::warning("Job stoppé avant INSERT Oracle");
+                    return;
+                }
 
                 DB::statement("
 INSERT INTO RA_T_OCC_CDR_DETAIL (
@@ -123,15 +146,26 @@ WHERE A_MSISDN IS NOT NULL AND B_MSISDN IS NOT NULL
 
                 DB::statement("TRUNCATE TABLE RA_T_TMP_OCC");
 
+                // 🔴 STOP AVANT MOVE
+                $jobModel->refresh();
+                if ($jobModel->status !== 'running') {
+                    Log::warning("Job stoppé avant move fichier");
+                    return;
+                }
+
                 $disk->move($filePath, 'occ/processed/' . basename($filePath));
             }
 
-            $jobModel->update([
-                'status' => 'stopped',
-                'finished_at' => now()
-            ]);
+            // ✅ FIN NORMALE
+            $jobModel->refresh();
+            if ($jobModel->status === 'running') {
+                $jobModel->update([
+                    'status' => 'success',
+                    'finished_at' => now()
+                ]);
+            }
 
-            Log::info("Load OCC - Fin job {$this->jobId}");
+            Log::info("Load OCC - Fin SUCCESS job {$this->jobId}");
 
         } catch (\Exception $e) {
 

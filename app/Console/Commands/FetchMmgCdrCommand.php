@@ -28,6 +28,7 @@ class FetchMmgCdrCommand extends Command
         return 1;
     }
 
+    // On s'assure que le statut est bien running
     $jobModel->update([
         'status' => 'running',
         'started_at' => now()
@@ -35,10 +36,10 @@ class FetchMmgCdrCommand extends Command
 
     \Log::info("Dispatch Fetch MMG job ID : $jobId");
 
-    // ✅ QUEUE
-    \App\Jobs\FetchMmgCdr::dispatch();
+    // ✅ CORRECTION : On passe l'ID au Job ici !
+    \App\Jobs\FetchMmgCdr::dispatch($jobId);
 
-    $this->info('Fetch envoyé en queue');
+    $this->info("Job $jobId envoyé en queue avec succès.");
 
     return 0;
 }

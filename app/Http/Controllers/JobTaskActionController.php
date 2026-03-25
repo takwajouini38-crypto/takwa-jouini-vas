@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\JobTask;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Log;
 
 class JobTaskActionController extends Controller
 {
@@ -29,7 +30,6 @@ class JobTaskActionController extends Controller
             return response()->json(['error' => 'Type de job inconnu'], 400);
         }
 
-        // ✅ 1. Mettre RUNNING
         $jobTask->update([
             'status' => 'running',
             'started_at' => now(),
@@ -37,44 +37,39 @@ class JobTaskActionController extends Controller
         ]);
 
         try {
-            // ✅ 2. Exécution
             Artisan::call($command, [
                 '--job-id' => $jobTask->id
             ]);
 
-            // ✅ 3. Mettre SUCCESS après exécution
-            $jobTask->update([
-                'status' => 'success',
-                'finished_at' => now()
-            ]);
+            Log::info("Commande {$command} envoyée pour Job ID: {$jobTask->id}");
 
         } catch (\Exception $e) {
-
-            // ❌ Si erreur
             $jobTask->update([
                 'status' => 'failed',
                 'finished_at' => now()
             ]);
 
-            return response()->json([
-                'error' => 'Erreur job',
-                'message' => $e->getMessage()
-            ], 500);
+            Log::error("Erreur lancement job: " . $e->getMessage());
+
+            return response()->json(['error' => 'Erreur lancement job'], 500);
         }
 
         return response()->json(['success' => true]);
     }
 
+    // ✅ STOP CORRIGÉ
     public function stop(JobTask $jobTask)
     {
         if ($jobTask->status !== 'running') {
-            return response()->json(['error' => 'Job non démarré'], 400);
+            return response()->json(['error' => 'Job non en cours'], 400);
         }
 
         $jobTask->update([
             'status' => 'stopped',
             'finished_at' => now()
         ]);
+
+        Log::warning("Job ID {$jobTask->id} arrêté par utilisateur");
 
         return response()->json(['success' => true]);
     }

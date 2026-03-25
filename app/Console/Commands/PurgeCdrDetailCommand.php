@@ -3,20 +3,40 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use App\Jobs\PurgeCdrDetail; // 🔹 Important
+use App\Jobs\PurgeCdrDetail;
+use App\Models\JobTask;
+use Illuminate\Support\Facades\DB;
 
 class PurgeCdrDetailCommand extends Command
 {
-    protected $signature = 'cdr:purge';
-    protected $description = 'Supprime les CDR de plus de 90 jours (MMG & OCC)';
+    // Signature avec l'option job-id
+    protected $signature = 'cdr:purge {--job-id=}';
+    protected $description = 'Supprime les fichiers traités et les CDR de plus de 30 jours';
 
     public function handle()
     {
-        $this->info('Début de la purge des CDR...');
+        $jobId = $this->option('job-id');
 
-        // Exécution immédiate du job
-        PurgeCdrDetail::dispatchSync();
+        if (!$jobId) {
+            $this->error('Option --job-id requise.');
+            return 1;
+        }
 
-        $this->info('Purge terminée avec succès.');
+        $jobModel = JobTask::find($jobId);
+
+        if ($jobModel) {
+            $jobModel->update([
+                'status' => 'running',
+                'started_at' => now()
+            ]);
+            DB::commit();
+        }
+
+        $this->info('Envoi du job de purge en file d\'attente...');
+
+        // On dispatch le job avec l'ID
+        PurgeCdrDetail::dispatch($jobId);
+
+        return 0;
     }
 }
