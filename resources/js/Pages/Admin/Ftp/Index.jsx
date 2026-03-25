@@ -11,6 +11,7 @@ import {
     CheckIcon,
     ArrowsRightLeftIcon
 } from "@heroicons/react/24/outline";
+import axios from "axios";
 
 export default function Index({ ftps }) {
     const [editing, setEditing] = useState(null);
@@ -27,6 +28,8 @@ export default function Index({ ftps }) {
     const submit = (e) => {
         e.preventDefault();
         if (editing) {
+            // Pour l'update (PUT), Inertia gère généralement bien le spoofing automatiquement, 
+            // mais on utilise put() ici car Laravel le supporte via Inertia
             put(route('admin.ftp.update', editing.id), {
                 onSuccess: () => { reset(); setEditing(null); }
             });
@@ -58,8 +61,25 @@ export default function Index({ ftps }) {
             host: ftp.host,
             port: ftp.port,
             username: ftp.username,
-            password: "", // On ne remplit pas le mot de passe pour des raisons de sécurité
+            password: "", 
         });
+    };
+
+    // --- LOGIQUE DE SUPPRESSION CORRIGÉE (SPOOFING) ---
+    const handleDelete = (id) => {
+        if (confirm('Êtes-vous sûr de vouloir supprimer ce serveur FTP ?')) {
+            router.post(route('admin.ftp.destroy', id), {
+                _method: 'delete', // Cette ligne transforme le POST en DELETE pour Laravel
+            }, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    console.log("Suppression réussie");
+                },
+                onError: (err) => {
+                    console.error("Erreur lors de la suppression", err);
+                }
+            });
+        }
     };
 
     return (
@@ -87,12 +107,14 @@ export default function Index({ ftps }) {
                                 <input className="w-full rounded-xl border-slate-200 focus:ring-indigo-500" 
                                     placeholder="ex: FTP Principal MMG" value={data.name}
                                     onChange={e => setData("name", e.target.value)} />
+                                {errors.name && <div className="text-red-500 text-xs mt-1">{errors.name}</div>}
                             </div>
                             <div className="md:col-span-1">
                                 <label className="block text-sm font-bold text-slate-700 mb-2">Hôte / IP</label>
                                 <input className="w-full rounded-xl border-slate-200 focus:ring-indigo-500" 
                                     placeholder="10.x.x.x" value={data.host}
                                     onChange={e => setData("host", e.target.value)} />
+                                {errors.host && <div className="text-red-500 text-xs mt-1">{errors.host}</div>}
                             </div>
                             <div className="md:col-span-1">
                                 <label className="block text-sm font-bold text-slate-700 mb-2">Port</label>
@@ -133,14 +155,13 @@ export default function Index({ ftps }) {
                             </div>
                         </div>
                         
-                        {/* Feedback Test de connexion */}
                         {testStatus === 'success' && <p className="mt-4 text-green-600 text-sm flex items-center gap-2"><CheckCircleIcon className="w-5 h-5"/> Connexion réussie !</p>}
                         {testStatus === 'error' && <p className="mt-4 text-red-600 text-sm flex items-center gap-2"><ExclamationCircleIcon className="w-5 h-5"/> Échec de connexion.</p>}
                     </form>
                 </div>
 
                 {/* LISTE DES SERVEURS */}
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-slate-50/50">
@@ -182,7 +203,9 @@ export default function Index({ ftps }) {
                                             className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors">
                                             <PencilSquareIcon className="w-5 h-5" />
                                         </button>
-                                        <button onClick={() => { if(confirm('Supprimer ce serveur ?')) router.delete(route('admin.ftp.destroy', ftp.id)) }}
+                                        
+                                        {/* BOUTON SUPPRIMER AVEC LA NOUVELLE LOGIQUE */}
+                                        <button onClick={() => handleDelete(ftp.id)}
                                             className="p-2 text-red-400 hover:bg-red-50 rounded-lg transition-colors">
                                             <TrashIcon className="w-5 h-5" />
                                         </button>

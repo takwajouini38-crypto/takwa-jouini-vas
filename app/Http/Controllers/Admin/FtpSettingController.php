@@ -46,11 +46,14 @@ class FtpSettingController extends Controller
     return back()->with('success', 'FTP modifié');
 }
 
-    public function destroy($id)
-    {
-        FtpSetting::destroy($id);
-        return back()->with('success', 'FTP supprimé');
-    }
+   public function destroy($id)
+{
+    $ftp = FtpSetting::findOrFail($id);
+    $ftp->delete();
+
+    // TRÈS IMPORTANT : Retourner back() pour qu'Inertia recharge les données
+    return redirect()->back()->with('success', 'Serveur FTP supprimé avec succès');
+}
 
     public function setActive($id)
     {
