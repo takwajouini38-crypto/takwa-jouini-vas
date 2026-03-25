@@ -34,15 +34,17 @@ class FtpSettingController extends Controller
     }
 
     public function update(Request $request, $id)
-    {
-        $ftp = FtpSetting::findOrFail($id);
-
-        $ftp->update($request->only([
-            'name','host','port','username','password'
-        ]));
-
-        return back()->with('success', 'FTP modifié');
+{
+    $ftp = FtpSetting::findOrFail($id);
+    $data = $request->only(['name','host','port','username']);
+    
+    if ($request->filled('password')) {
+        $data['password'] = $request->password;
     }
+
+    $ftp->update($data);
+    return back()->with('success', 'FTP modifié');
+}
 
     public function destroy($id)
     {
@@ -62,22 +64,39 @@ class FtpSettingController extends Controller
         return back()->with('success', 'FTP activé');
     }
 
-    public function testConnection(Request $request)
-    {
-        $conn = @ftp_connect($request->host, $request->port);
+   public function testConnection(Request $request)
+{
+    // 1. On tente d'abord la connexion SSL (obligatoire pour ton serveur actuel)
+    $conn = @ftp_ssl_connect($request->host, $request->port, 5); // timeout de 5 sec
 
-        if (!$conn) {
-            return response()->json(['status' => 'error', 'message' => 'Connexion impossible']);
-        }
-
-        $login = @ftp_login($conn, $request->username, $request->password);
-
-        ftp_close($conn);
-
-        if (!$login) {
-            return response()->json(['status' => 'error', 'message' => 'Login échoué']);
-        }
-
-        return response()->json(['status' => 'success', 'message' => 'Connexion OK']);
+    // 2. Si SSL échoue, on tente le FTP classique (fallback)
+    if (!$conn) {
+        $conn = @ftp_connect($request->host, $request->port, 5);
     }
+
+    if (!$conn) {
+        return response()->json([
+            'status' => 'error', 
+            'message' => 'Hôte introuvable ou port fermé'
+        ]);
+    }
+
+    // 3. Tentative de login
+    $login = @ftp_login($conn, $request->username, $request->password);
+
+    if ($login) {
+        ftp_pasv($conn, true); // Test du mode passif aussi
+        ftp_close($conn);
+        return response()->json([
+            'status' => 'success', 
+            'message' => 'Connexion établie avec succès !'
+        ]);
+    }
+
+    @ftp_close($conn);
+    return response()->json([
+        'status' => 'error', 
+        'message' => 'Identifiants incorrects ou sécurité (AUTH) requise'
+    ]);
+}
 }

@@ -11,6 +11,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use App\Models\JobTask;
+use App\Services\FtpService; // 🔥 Import du service
 
 class FetchMmgCdr implements ShouldQueue
 {
@@ -23,11 +24,14 @@ class FetchMmgCdr implements ShouldQueue
         $this->jobId = $jobId;
     }
 
-    public function handle()
+    /**
+     * Utilisation du FtpService pour récupérer les accès dynamiques de Tunisie Telecom
+     */
+    public function handle(FtpService $ftpService)
     {
         set_time_limit(0);
 
-        Log::info("=== START FETCH MMG [ID: {$this->jobId}] ===");
+        Log::info("=== START FETCH MMG DIRECT [ID: {$this->jobId}] ===");
 
         $jobModel = JobTask::find($this->jobId);
 
@@ -37,74 +41,71 @@ class FetchMmgCdr implements ShouldQueue
         }
 
         try {
-            $sourceFtp = Storage::disk('ftp_local');
-            $localFtp  = Storage::disk('cdr_storage');
+            // Ton disque local de destination
+            $localFtp = Storage::disk('cdr_storage');
 
-            $files = $sourceFtp->files('mmg');
+            // 1. Lister les fichiers sur le serveur distant (dossier 'mmg')
+            $files = $ftpService->listFiles('mmg');
 
-            Log::info("Nombre de fichiers trouvés : " . count($files));
+            Log::info("Fichiers détectés sur le serveur FTP : " . count($files));
 
             foreach ($files as $filePath) {
 
-                // 🔴 STOP CHECK AVANT CHAQUE FICHIER
+                // 🔴 CHECK STOP : Vérifie si l'admin a cliqué sur "Stop"
                 $jobModel->refresh();
                 if ($jobModel->status !== 'running') {
-                    Log::warning("Job stoppé avant traitement fichier");
+                    Log::warning("Job stoppé par l'administrateur");
                     return;
                 }
 
+                // Filtrage CSV
                 if (!str_ends_with($filePath, '.csv')) continue;
 
                 $filename = basename($filePath);
+                Log::info("Téléchargement direct de : {$filename}");
 
-                Log::info("Traitement fichier : {$filename}");
+                // 2. RÉCUPÉRATION ET STOCKAGE DIRECT
+                // On utilise une ressource temporaire en mémoire PHP (php://temp) 
+                // pour faire le pont sans créer de fichier physique dans un dossier /temp
+                $tempStream = fopen('php://temp', 'r+');
+                
+                // Connexion et téléchargement vers le flux
+                $conn = $ftpService->connect();
+                if (ftp_fget($conn, $tempStream, $filePath, FTP_BINARY)) {
+                    rewind($tempStream);
+                    
+                    // Écriture directe dans ton disque cdr_storage
+                    $localFtp->put('mmg/' . $filename, $tempStream);
+                    fclose($tempStream);
+                    ftp_close($conn);
 
-                // 🔴 STOP CHECK AVANT DOWNLOAD
-                $jobModel->refresh();
-                if ($jobModel->status !== 'running') {
-                    Log::warning("Job stoppé avant téléchargement");
-                    return;
+                    Log::info("Fichier stocké directement dans cdr_storage/mmg/");
+
+                    // 3. ARCHIVAGE DISTANT (Move sur le FTP)
+                    $ftpService->move($filePath, 'mmg/processed/' . $filename);
+                } else {
+                    fclose($tempStream);
+                    ftp_close($conn);
+                    Log::error("Échec du téléchargement pour le fichier : {$filename}");
                 }
 
-                $content = $sourceFtp->get($filePath);
-
-                // 🔴 STOP CHECK APRÈS DOWNLOAD
-                $jobModel->refresh();
-                if ($jobModel->status !== 'running') {
-                    Log::warning("Job stoppé après téléchargement");
-                    return;
-                }
-
-                $localFtp->put('mmg/' . $filename, $content);
-
-                // 🔴 STOP CHECK AVANT MOVE
-                $jobModel->refresh();
-                if ($jobModel->status !== 'running') {
-                    Log::warning("Job stoppé avant déplacement fichier");
-                    return;
-                }
-
-                $sourceFtp->move($filePath, 'mmg/processed/' . $filename);
-
-                // 🔥 améliore réactivité du STOP
-                usleep(200000); // 0.2 sec
+                // 🔥 Améliore la réactivité du bouton STOP
+                usleep(200000); 
             }
 
-            // ✅ FIN PROPRE
+            // ✅ FIN DU PROCESSUS
             $jobModel->refresh();
-
             if ($jobModel->status === 'running') {
                 $jobModel->update([
                     'status' => 'success',
                     'finished_at' => now()
                 ]);
 
-                DB::commit(); // utile pour Oracle
+                DB::commit(); 
                 Log::info("=== FETCH MMG SUCCESS ===");
             }
 
         } catch (\Exception $e) {
-
             Log::error("Erreur Fetch MMG : " . $e->getMessage());
 
             if ($jobModel) {
@@ -112,7 +113,6 @@ class FetchMmgCdr implements ShouldQueue
                     'status' => 'failed',
                     'finished_at' => now()
                 ]);
-
                 DB::commit();
             }
         }

@@ -11,6 +11,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use App\Models\JobTask;
+use App\Services\FtpService;
 
 class FetchOccCdr implements ShouldQueue
 {
@@ -23,7 +24,7 @@ class FetchOccCdr implements ShouldQueue
         $this->jobId = $jobId;
     }
 
-    public function handle()
+    public function handle(FtpService $ftpService)
     {
         set_time_limit(0);
 
@@ -32,79 +33,87 @@ class FetchOccCdr implements ShouldQueue
         $jobModel = JobTask::find($this->jobId);
 
         if (!$jobModel) {
-            Log::error("Job introuvable");
+            Log::error("Job OCC introuvable");
             return;
         }
 
         try {
-            $sourceFtp = Storage::disk('ftp_local');
-            $localFtp  = Storage::disk('cdr_storage');
+            // Disque local final
+            $localFtp = Storage::disk('cdr_storage');
 
-            $files = $sourceFtp->files('occ');
+            // 1. Lister les fichiers sur le serveur distant (dossier 'occ')
+            $files = $ftpService->listFiles('occ');
 
-            Log::info("Nombre de fichiers OCC : " . count($files));
+            Log::info("Nombre de fichiers OCC détectés : " . count($files));
 
             foreach ($files as $filePath) {
 
                 // 🔴 STOP CHECK AVANT CHAQUE FICHIER
                 $jobModel->refresh();
                 if ($jobModel->status !== 'running') {
-                    Log::warning("Job OCC stoppé avant traitement fichier");
+                    Log::warning("Job OCC stoppé par l'administrateur");
                     return;
                 }
 
                 if (!str_ends_with($filePath, '.csv')) continue;
 
                 $filename = basename($filePath);
+                Log::info("Téléchargement direct OCC : {$filename}");
 
-                Log::info("Traitement fichier OCC : {$filename}");
-
+                // 2. RÉCUPÉRATION ET STOCKAGE DIRECT (Optimisé via flux mémoire)
+                $tempStream = fopen('php://temp', 'r+');
+                
+                // Connexion via le service
+                $conn = $ftpService->connect();
+                
                 // 🔴 STOP CHECK AVANT DOWNLOAD
-                $jobModel->refresh();
                 if ($jobModel->status !== 'running') {
-                    Log::warning("Job OCC stoppé avant téléchargement");
+                    fclose($tempStream);
+                    ftp_close($conn);
                     return;
                 }
 
-                $content = $sourceFtp->get($filePath);
+                if (ftp_fget($conn, $tempStream, $filePath, FTP_BINARY)) {
+                    rewind($tempStream);
+                    
+                    // Écriture directe dans le stockage local (dossier occ/)
+                    $localFtp->put('occ/' . $filename, $tempStream);
+                    
+                    fclose($tempStream);
+                    ftp_close($conn);
 
-                // 🔴 STOP CHECK APRÈS DOWNLOAD
-                $jobModel->refresh();
-                if ($jobModel->status !== 'running') {
-                    Log::warning("Job OCC stoppé après téléchargement");
-                    return;
+                    Log::info("Fichier OCC stocké localement : occ/{$filename}");
+
+                    // 🔴 STOP CHECK AVANT ARCHIVAGE DISTANT
+                    $jobModel->refresh();
+                    if ($jobModel->status !== 'running') return;
+
+                    // 3. ARCHIVAGE DISTANT (Move sur le serveur FTP)
+                    $ftpService->move($filePath, 'occ/processed/' . $filename);
+                    Log::info("Fichier OCC déplacé vers processed sur le serveur");
+                } else {
+                    fclose($tempStream);
+                    ftp_close($conn);
+                    Log::error("Échec du téléchargement OCC pour le fichier : {$filename}");
                 }
 
-                $localFtp->put('occ/' . $filename, $content);
-
-                // 🔴 STOP CHECK AVANT MOVE
-                $jobModel->refresh();
-                if ($jobModel->status !== 'running') {
-                    Log::warning("Job OCC stoppé avant déplacement");
-                    return;
-                }
-
-                $sourceFtp->move($filePath, 'occ/processed/' . $filename);
-
-                // 🔥 améliore réactivité STOP
+                // 🔥 Améliore réactivité du bouton STOP
                 usleep(200000);
             }
 
             // ✅ FIN PROPRE
             $jobModel->refresh();
-
             if ($jobModel->status === 'running') {
                 $jobModel->update([
                     'status' => 'success',
                     'finished_at' => now()
                 ]);
 
-                DB::commit(); // important pour Oracle
+                DB::commit();
                 Log::info("=== FETCH OCC SUCCESS ===");
             }
 
         } catch (\Exception $e) {
-
             Log::error("Erreur Fetch OCC : " . $e->getMessage());
 
             if ($jobModel) {
@@ -112,7 +121,6 @@ class FetchOccCdr implements ShouldQueue
                     'status' => 'failed',
                     'finished_at' => now()
                 ]);
-
                 DB::commit();
             }
         }
