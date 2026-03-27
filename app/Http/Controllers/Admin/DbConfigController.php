@@ -1,89 +1,105 @@
 <?php
-// app/Http/Controllers/Admin/DbConfigController.php
+
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\DbConfig;
+use App\Services\OracleConnectorService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class DbConfigController extends Controller
 {
+    protected $oracleService;
+
+    public function __construct(OracleConnectorService $oracleService)
+    {
+        $this->oracleService = $oracleService;
+    }
+
     public function index()
     {
-        $config = DbConfig::first();
         return Inertia::render('Admin/dbconfig', [
-            'config' => $config
+            'configs' => DbConfig::orderBy('created_at', 'desc')->get()
         ]);
     }
 
-    public function storeOrUpdate(Request $request)
+    public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'host' => 'required|string|max:255',
-            'port' => 'required|integer|min:1|max:65535',
-            'service_name' => 'required|string|max:255',
-            'username' => 'required|string|max:255',
-            'password' => 'nullable|string',
-            'is_active' => 'boolean'
+        $request->validate([
+            'host'         => 'required|string',
+            'port'         => 'required|integer',
+            'service_name' => 'required|string',
+            'username'     => 'required|string',
+            'password'     => 'required|string',
+            'is_active'    => 'boolean'
         ]);
 
-        if ($validator->fails()) {
-            return back()->withErrors($validator)->withInput();
+        try {
+            // Si on active cette config, on désactive les autres dans Oracle
+            if ($request->is_active) {
+                DbConfig::query()->update(['is_active' => false]);
+            }
+
+            // Insertion explicite
+            DbConfig::create([
+                'host'         => $request->host,
+                'port'         => $request->port,
+                'service_name' => $request->service_name,
+                'username'     => $request->username,
+                'password'     => $request->password,
+                'is_active'    => $request->is_active ?? false,
+            ]);
+
+            return redirect()->route('admin.db.index')->with('success', 'Config enregistrée dans Oracle.');
+
+        } catch (\Exception $e) {
+            Log::error("Erreur d'insertion Oracle : " . $e->getMessage());
+            return redirect()->back()->withErrors(['error' => "Erreur Oracle : " . $e->getMessage()]);
         }
+    }
 
-        $config = DbConfig::first();
-        $data = $request->all();
+    public function update(Request $request, $id)
+    {
+        try {
+            $config = DbConfig::findOrFail($id);
 
-        if (!$request->filled('password')) {
-            unset($data['password']);
+            if ($request->is_active) {
+                DbConfig::where('id', '!=', $id)->update(['is_active' => false]);
+            }
+
+            $config->fill($request->except('password'));
+            if ($request->filled('password')) {
+                $config->password = $request->password;
+            }
+            $config->save();
+
+            return redirect()->route('admin.db.index')->with('success', 'Mise à jour réussie.');
+        } catch (\Exception $e) {
+            return redirect()->back()->withErrors(['error' => $e->getMessage()]);
         }
+    }
 
-        if ($config) {
-            $config->update($data);
-        } else {
-            DbConfig::create($data);
-        }
-
-        return redirect()->route('admin.db.index')
-            ->with('success', 'Configuration base de données mise à jour.');
+    public function destroy($id)
+    {
+        DbConfig::findOrFail($id)->delete();
+        return redirect()->back()->with('success', 'Supprimé avec succès.');
     }
 
     public function testConnection(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'host' => 'required|string',
-            'port' => 'required|integer',
-            'service_name' => 'required|string',
-            'username' => 'required|string',
-            'password' => 'required|string',
+        $params = $request->all();
+        if (empty($params['password']) && $request->id) {
+            $existing = DbConfig::find($request->id);
+            $params['password'] = $existing->password; 
+        }
+
+        $isConnected = $this->oracleService->testConnectionWithParams($params);
+
+        return response()->json([
+            'success' => $isConnected,
+            'message' => $isConnected ? 'Connexion réussie !' : 'Échec de la connexion Oracle.'
         ]);
-
-        if ($validator->fails()) {
-            return response()->json(['success' => false, 'message' => 'Données invalides'], 422);
-        }
-
-        // Création d'une configuration temporaire pour le test
-        config(['database.connections.oracle_test' => [
-            'driver'   => 'oracle',
-            'host'     => $request->host,
-            'port'     => $request->port,
-            'database' => $request->service_name, // SID ou service name
-            'username' => $request->username,
-            'password' => $request->password,
-            'charset'  => 'AL32UTF8',
-            'prefix'   => '',
-            'prefix_schema' => '',
-        ]]);
-
-        try {
-            // Tentative de connexion via OCI8 (grâce au package yajra/laravel-oci8)
-            DB::connection('oracle_test')->getPdo();
-            return response()->json(['success' => true, 'message' => 'Connexion à la base de données réussie.']);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Erreur de connexion : ' . $e->getMessage()]);
-        }
     }
 }

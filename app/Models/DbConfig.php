@@ -1,5 +1,5 @@
 <?php
-// app/Models/DbConfig.php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -10,14 +10,23 @@ class DbConfig extends Model
 {
     use HasFactory;
 
+    // FORCE l'utilisation de la connexion Oracle définie dans config/database.php
+    protected $connection = 'oracle'; 
+    
     protected $table = 'db_configs';
+
     protected $fillable = [
         'host', 'port', 'service_name', 'username', 'password', 'is_active'
     ];
 
+    // Cryptage automatique pour la sécurité (PFE)
     public function getPasswordAttribute($value)
     {
-        return $value ? Crypt::decryptString($value) : null;
+        try {
+            return $value ? Crypt::decryptString($value) : null;
+        } catch (\Exception $e) {
+            return $value; // Retourne brut si non crypté (pour éviter les crashs)
+        }
     }
 
     public function setPasswordAttribute($value)
