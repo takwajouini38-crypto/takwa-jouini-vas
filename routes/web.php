@@ -28,6 +28,8 @@ Route::middleware(['auth'])->prefix('analyste-biz')->group(function () {
     Route::get('/analytics', [AnalysteBusinessController::class, 'analytics'])->name('analyste.analytics');
     Route::get('/top-services', [AnalysteBusinessController::class, 'topServicesPage'])->name('analyste.top');
     Route::get('/search', [AnalysteBusinessController::class, 'searchPage'])->name('analyste.search');
+    Route::post('/bulk-search', [AnalysteBusinessController::class, 'execBulkSearch'])
+    ->name('analyste.bulk.search');
     Route::get('/api/search', [AnalysteBusinessController::class, 'execSearch'])->name('analyste.api.search');
     Route::get('/export', [AnalysteBusinessController::class, 'exportExcel'])->name('analyste.export');
 });
