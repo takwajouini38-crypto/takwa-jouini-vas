@@ -8,10 +8,13 @@ import {
     HomeIcon,
     Cog6ToothIcon,
     CloudIcon,
-    ListBulletIcon,
     ChartBarIcon,
-    TrophyIcon, // Nouvelle icône pour Top 20
-    MagnifyingGlassIcon // Nouvelle icône pour Recherche
+    TrophyIcon,
+    MagnifyingGlassIcon,
+    TableCellsIcon,
+    BellAlertIcon,
+    BriefcaseIcon, // Nouvel icône pour Provider
+    Square3Stack3DIcon // Nouvel icône pour Service
 } from '@heroicons/react/24/outline';
 
 import Dropdown from '@/Components/Dropdown';
@@ -21,7 +24,6 @@ export default function AuthenticatedLayout({ children, title }) {
     const user = pageProps.auth?.user || null;
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
-    // Définition du menu mis à jour pour l'Analyste Business
     const navigation = [
         {
             label: "ADMINISTRATION",
@@ -30,23 +32,64 @@ export default function AuthenticatedLayout({ children, title }) {
                 { name: 'Gestion Utilisateurs', href: '/admin/users', roles: ['admin'], icon: UsersIcon },
             ]
         },
-        // --- NOUVELLE SECTION RÉSERVÉE À L'ANALYSTE BIZ ---
-       {
+        {
             label: "PORTAIL BUSINESS",
             items: [
                 { 
                     name: 'Vue Principale Biz', 
-                    href: '/biz-dashboard', // L'URL définie dans votre web.php
-                    roles: ['analyst_biz'], // Accessible UNIQUEMENT par l'analyste biz
+                    href: '/biz-dashboard', 
+                    roles: ['analyst_biz'], 
                     icon: HomeIcon 
                 },
             ]
         },
         {
+            label: "PORTAIL OPÉRATIONNEL",
+            items: [
+                { 
+                    name: "Vue Principale Op", 
+                    href: '/op-dashboard', 
+                    roles: ['analyst_op'], 
+                    icon: HomeIcon 
+                },
+                { 
+                    name: 'Tableau de bord Traffic', 
+                    href: '/analyste-op/traffic', 
+                    roles: ['analyst_op'], 
+                    icon: ChartBarIcon 
+                },
+                { 
+                    name: 'Suivi des Jobs', 
+                    href: '/suivi-jobs', 
+                    roles: ['analyst_op'], 
+                    icon: TableCellsIcon 
+                },
+            ]
+        },
+        // --- NOUVELLE SECTION : REVENUE BY SERVICE & PROVIDER ---
+       {
+    label: "RAPPORTS DE REVENUS",
+    items: [
+        { 
+            name: 'Revenus par Service', 
+            // Correction ici : l'URL doit être celle de ton route::get
+            href: '/monitoring/analytics/services', 
+            roles: ['analyst_biz', 'analyst_op'], 
+            icon: Square3Stack3DIcon 
+        },
+        { 
+            name: 'Revenus par Provider', 
+            // Correction ici : l'URL doit être celle de ton route::get
+            href: '/monitoring/analytics/providers', 
+            roles: ['analyst_biz', 'analyst_op'], 
+            icon: BriefcaseIcon 
+        },
+    ]
+},
+        {
             label: "MONITORING",
             items: [
-                { name: 'Suivi Jobs', href: '/suivi-jobs', roles: ['admin', 'analyst_op'], icon: ListBulletIcon },
-                { name: 'Services', href: '/services', roles: ['admin', 'analyst_op'], icon: ServerIcon },
+                { name: 'Services', href: '/services', roles: ['analyst_op'], icon: ServerIcon },
             ]
         },
         {
@@ -61,20 +104,26 @@ export default function AuthenticatedLayout({ children, title }) {
             items: [
                 { 
                     name: 'Analyses de Revenus', 
-                    href: '/analyste-biz/analytics', 
-                    roles: ['admin', 'analyst_biz'], 
+                    href: '/monitoring/analytics', 
+                    roles: ['analyst_biz', 'analyst_op'], 
                     icon: ChartBarIcon 
                 },
                 { 
+                    name: 'Historique des Alertes', 
+                    href: '/monitoring/historique-alertes', 
+                    roles: ['analyst_biz', 'analyst_op'], 
+                    icon: BellAlertIcon 
+                },
+                { 
                     name: 'Top 20 Services', 
-                    href: '/analyste-biz/top-services', 
-                    roles: ['admin', 'analyst_biz'], 
+                    href: '/monitoring/top-services', 
+                    roles: ['analyst_biz', 'analyst_op'], 
                     icon: TrophyIcon 
                 },
                 { 
                     name: 'Recherche MSISDN', 
-                    href: '/analyste-biz/search', 
-                    roles: ['admin', 'analyst_biz'], 
+                    href: '/monitoring/search', 
+                    roles: ['analyst_biz', 'analyst_op'], 
                     icon: MagnifyingGlassIcon 
                 },
             ]
@@ -89,6 +138,7 @@ export default function AuthenticatedLayout({ children, title }) {
 
     if (!user) return null;
 
+    // ... Le reste du rendu (JSX) reste strictement identique ...
     return (
         <div className="flex h-screen w-full bg-gray-100 overflow-hidden">
             {/* SIDEBAR DESKTOP */}
@@ -103,7 +153,6 @@ export default function AuthenticatedLayout({ children, title }) {
                 </div>
                 <nav className="flex-1 overflow-y-auto p-4 space-y-6">
                     {navigation.map((group) => {
-                        // On vérifie si l'utilisateur a accès à au moins un item du groupe
                         const hasAccessToGroup = group.items.some(item => item.roles.includes(user.role));
                         if (!hasAccessToGroup) return null;
 
@@ -133,7 +182,7 @@ export default function AuthenticatedLayout({ children, title }) {
                 </nav>
             </aside>
 
-            {/* ZONE CONTENU (DROITE) */}
+            {/* ZONE CONTENU */}
             <div className="flex-1 flex flex-col min-w-0 h-full">
                 <header className="h-16 bg-white border-b flex items-center justify-between px-6 z-40 flex-shrink-0">
                     <div className="flex items-center gap-3">
@@ -172,7 +221,7 @@ export default function AuthenticatedLayout({ children, title }) {
                 </main>
             </div>
 
-            {/* MOBILE SIDEBAR (Utilise le même mapping navigation) */}
+            {/* MOBILE SIDEBAR */}
             {sidebarOpen && (
                 <div className="fixed inset-0 z-50 flex md:hidden">
                     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />

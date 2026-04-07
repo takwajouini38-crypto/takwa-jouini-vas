@@ -11,6 +11,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use App\Models\JobTask;
 use Illuminate\Support\Facades\Log;
+use App\Services\OracleConnectorService; // ✅ Import du service
 
 class LoadMmgCdr implements ShouldQueue
 {
@@ -24,7 +25,8 @@ class LoadMmgCdr implements ShouldQueue
         $this->jobId = $jobId;
     }
 
-    public function handle()
+    // ✅ Injection du service dans handle
+    public function handle(OracleConnectorService $oracleService)
     {
         set_time_limit(0);
 
@@ -38,6 +40,10 @@ class LoadMmgCdr implements ShouldQueue
         }
 
         try {
+            // ✅ 1. Configuration de la connexion dynamique avant tout traitement BDD
+            $oracleService->configureConnection();
+
+            $jobModel->update(['status' => 'running']);
 
             $disk = Storage::disk('cdr_storage');
             $files = $disk->files('mmg');
@@ -45,15 +51,14 @@ class LoadMmgCdr implements ShouldQueue
             Log::info("Fichiers trouvés : " . count($files));
 
             foreach ($files as $filePath) {
+                if (!str_ends_with($filePath, '.csv')) continue;
 
                 // 🔴 STOP entre fichiers
                 $jobModel->refresh();
                 if ($jobModel->status !== 'running') {
-                    Log::warning("Job stoppé avant traitement fichier.");
+                    Log::warning("Job {$this->jobId} stoppé.");
                     return;
                 }
-
-                if (!str_ends_with($filePath, '.csv')) continue;
 
                 $fileFullPath = $disk->path($filePath);
                 $handle = fopen($fileFullPath, 'r');
@@ -70,52 +75,38 @@ class LoadMmgCdr implements ShouldQueue
                 Log::info("Traitement fichier : {$filePath}");
 
                 while (($line = fgetcsv($handle, 0, ",")) !== false) {
-
                     // 🔴 STOP pendant lecture
                     $jobModel->refresh();
                     if ($jobModel->status !== 'running') {
-                        Log::warning("Job stoppé pendant lecture !");
                         fclose($handle);
                         return;
                     }
 
                     $lineNumber++;
-
                     if (count($line) != count($header)) continue;
 
                     $row = [];
                     foreach ($line as $i => $value) {
                         $row[$header[$i]] = $value;
                     }
-
                     $batch[] = $row;
 
                     if (count($batch) >= $this->batchSize) {
-                        DB::table('RA_T_MMG_TMP')->insert($batch);
+                        // ✅ Utilisation de la connexion dynamique
+                        DB::connection('oracle_dynamic')->table('RA_T_MMG_TMP')->insert($batch);
                         $batch = [];
                     }
-
-                    // (optionnel) rend le stop plus réactif
-                    usleep(100000);
                 }
 
                 if (!empty($batch)) {
-                    DB::table('RA_T_MMG_TMP')->insert($batch);
+                    // ✅ Utilisation de la connexion dynamique
+                    DB::connection('oracle_dynamic')->table('RA_T_MMG_TMP')->insert($batch);
                 }
 
                 fclose($handle);
 
-                Log::info("Fichier traité : {$lineNumber} lignes.");
-
-                // 🔴 STOP avant transfert Oracle
-                $jobModel->refresh();
-                if ($jobModel->status !== 'running') {
-                    Log::warning("Job stoppé avant insertion Oracle.");
-                    return;
-                }
-
-                // ✅ INSERT Oracle
-                DB::statement("
+                // ✅ INSERT Oracle final via connexion dynamique
+                DB::connection('oracle_dynamic')->statement("
                     INSERT INTO RA_T_MMG_CDR_DETAIL (
                         NE, A_MSISDN, B_MSISDN, START_DATE, START_HOUR, 
                         EVENT_TYPE, EVENT_TYPE_ORIG, CALL_TYPE, EVENT_STATUS, 
@@ -139,41 +130,23 @@ class LoadMmgCdr implements ShouldQueue
                     WHERE A_MSISDN IS NOT NULL AND B_MSISDN IS NOT NULL
                 ");
 
-                DB::statement("TRUNCATE TABLE RA_T_MMG_TMP");
+                // ✅ Truncate via connexion dynamique
+                DB::connection('oracle_dynamic')->statement("TRUNCATE TABLE RA_T_MMG_TMP");
 
-                Log::info("Table TMP vidée.");
-
-                // 🔴 STOP avant déplacement fichier
-                $jobModel->refresh();
-                if ($jobModel->status !== 'running') {
-                    Log::warning("Job stoppé avant move fichier.");
-                    return;
-                }
-
-                // ✅ move vers processed
+                // Déplacement fichier
                 $disk->move($filePath, 'mmg/processed/' . basename($filePath));
-
-                Log::info("Fichier déplacé vers processed.");
+                Log::info("Fichier traité et déplacé.");
             }
 
             // ✅ FIN NORMALE
-            $jobModel->refresh();
             if ($jobModel->status === 'running') {
-                $jobModel->update([
-                    'status' => 'success',
-                    'finished_at' => now()
-                ]);
+                $jobModel->update(['status' => 'success', 'updated_at' => now()]);
             }
 
-            Log::info("=== FIN Job SUCCESS ===");
-
         } catch (\Exception $e) {
-
-            $jobModel->update([
-                'status' => 'failed',
-                'finished_at' => now()
-            ]);
-
+            if ($jobModel) {
+                $jobModel->update(['status' => 'failed', 'updated_at' => now()]);
+            }
             Log::error("Erreur Job MMG : " . $e->getMessage());
         }
     }

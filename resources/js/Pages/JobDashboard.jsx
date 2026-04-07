@@ -8,15 +8,13 @@ import {
     CheckCircleIcon, 
     ExclamationTriangleIcon,
     CommandLineIcon,
-    ServerIcon,
-    XMarkIcon
+    ServerIcon
 } from '@heroicons/react/24/outline';
 import axios from 'axios';
 
-// --- NOUVEAU COMPOSANT MODAL ---
+// --- COMPOSANT MODAL DE CONFIRMATION ---
 function ConfirmModal({ isOpen, onClose, onConfirm, title, message, type = 'danger' }) {
     if (!isOpen) return null;
-
     const isDanger = type === 'danger';
 
     return (
@@ -31,41 +29,14 @@ function ConfirmModal({ isOpen, onClose, onConfirm, title, message, type = 'dang
                     </div>
                     <p className="text-gray-600 mb-6">{message}</p>
                     <div className="flex justify-end gap-3">
-                        <button 
-                            onClick={onClose}
-                            className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-colors"
-                        >
+                        <button onClick={onClose} className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-colors">
                             Annuler
                         </button>
-                        <button 
-                            onClick={onConfirm}
-                            className={`px-6 py-2 text-white rounded-xl font-medium transition-colors ${isDanger ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
-                        >
+                        <button onClick={onConfirm} className={`px-6 py-2 text-white rounded-xl font-medium transition-colors ${isDanger ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}>
                             Confirmer
                         </button>
                     </div>
                 </div>
-            </div>
-        </div>
-    );
-}
-
-// --- STAT CARD ---
-function StatCard({ title, value, icon, color }) {
-    const colors = {
-        sky: "text-sky-700 bg-sky-100 border-sky-200",
-        green: "text-green-700 bg-green-100 border-green-200",
-        red: "text-red-700 bg-red-100 border-red-200"
-    };
-
-    return (
-        <div className={`p-6 rounded-2xl border ${colors[color]} shadow-sm flex items-center gap-4`}>
-            <div className="p-3 rounded-xl bg-white/80">
-                {icon}
-            </div>
-            <div>
-                <p className="text-sm font-medium opacity-80 mb-1">{title}</p>
-                <p className="text-3xl font-bold">{value}</p>
             </div>
         </div>
     );
@@ -77,7 +48,6 @@ export default function JobDashboard({ jobs: initialJobs }) {
     const [loadingId, setLoadingId] = useState(null);
     const [refreshing, setRefreshing] = useState(false);
 
-    // --- ÉTATS POUR LA MODAL ---
     const [modalConfig, setModalConfig] = useState({ 
         isOpen: false, 
         type: 'success', 
@@ -86,10 +56,22 @@ export default function JobDashboard({ jobs: initialJobs }) {
         onConfirm: () => {} 
     });
 
-    const stats = {
-        total: jobs.length,
-        running: jobs.filter(j => j.status === 'running').length,
-        failed: jobs.filter(j => j.status === 'failed').length,
+    // --- FONCTION DE FORMATAGE DE DATE ---
+    const formatDate = (dateString) => {
+        if (!dateString) return "Jamais";
+        try {
+            const date = new Date(dateString);
+            return new Intl.DateTimeFormat('fr-FR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            }).format(date);
+        } catch (e) {
+            return dateString; // Retourne la chaîne brute en cas d'erreur
+        }
     };
 
     const refreshJobs = (showLoading = false) => {
@@ -105,12 +87,12 @@ export default function JobDashboard({ jobs: initialJobs }) {
         });
     };
 
+    // Auto-refresh toutes les 3 secondes
     useEffect(() => {
         const interval = setInterval(() => refreshJobs(false), 3000);
         return () => clearInterval(interval);
     }, []);
 
-    // 🔹 START (mis à jour avec Modal)
     const handleStart = (job) => {
         setModalConfig({
             isOpen: true,
@@ -124,7 +106,7 @@ export default function JobDashboard({ jobs: initialJobs }) {
                     await axios.post(route('job-tasks.start', job.id));
                     refreshJobs(false);
                 } catch (error) {
-                    alert('Erreur lors du démarrage.');
+                    console.error('Erreur démarrage:', error);
                 } finally {
                     setLoadingId(null);
                 }
@@ -132,7 +114,6 @@ export default function JobDashboard({ jobs: initialJobs }) {
         });
     };
 
-    // 🔹 STOP (mis à jour avec Modal)
     const handleStop = (job) => {
         setModalConfig({
             isOpen: true,
@@ -146,7 +127,7 @@ export default function JobDashboard({ jobs: initialJobs }) {
                     await axios.post(route('job-tasks.stop', job.id));
                     refreshJobs(false);
                 } catch (error) {
-                    alert('Erreur lors de l\'arrêt.');
+                    console.error('Erreur arrêt:', error);
                 } finally {
                     setLoadingId(null);
                 }
@@ -171,9 +152,7 @@ export default function JobDashboard({ jobs: initialJobs }) {
     };
 
     return (
-        <div className="py-8 px-4 bg-slate-50 min-h-screen relative">
-            
-            {/* INJECTION DE LA MODAL */}
+        <div className="py-8 px-4 bg-slate-50 min-h-screen">
             <ConfirmModal 
                 {...modalConfig} 
                 onClose={() => setModalConfig(prev => ({ ...prev, isOpen: false }))} 
@@ -181,7 +160,7 @@ export default function JobDashboard({ jobs: initialJobs }) {
 
             <div className="max-w-7xl mx-auto">
                 {/* HEADER */}
-                <div className="flex justify-between mb-8">
+                <div className="flex justify-between items-center mb-8">
                     <h1 className="text-3xl font-bold flex items-center gap-2 text-slate-800">
                         <ServerIcon className="w-8 h-8 text-sky-600" />
                         Monitoring CDR RA
@@ -196,14 +175,7 @@ export default function JobDashboard({ jobs: initialJobs }) {
                     </button>
                 </div>
 
-                {/* STATS */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <StatCard title="Total Jobs" value={stats.total} icon={<CommandLineIcon className="w-6 h-6" />} color="sky" />
-                    <StatCard title="En cours" value={stats.running} icon={<ArrowPathIcon className="w-6 h-6" />} color="green" />
-                    <StatCard title="Échecs" value={stats.failed} icon={<ExclamationTriangleIcon className="w-6 h-6" />} color="red" />
-                </div>
-
-                {/* TABLE */}
+                {/* TABLEAU DES JOBS */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                     <table className="w-full text-left border-collapse">
                         <thead>
@@ -219,9 +191,14 @@ export default function JobDashboard({ jobs: initialJobs }) {
                             {jobs.map(job => (
                                 <tr key={job.id} className="hover:bg-gray-50/50 transition-colors">
                                     <td className="p-4 font-medium text-gray-700">{job.name}</td>
-                                    <td className="p-4 text-gray-500 text-sm">{job.type}</td>
+                                    <td className="p-4 text-gray-500 text-sm uppercase font-semibold">{job.type}</td>
                                     <td className="p-4">{getStatusBadge(job.status)}</td>
-                                    <td className="p-4 text-gray-400 text-xs">{job.updated_at}</td>
+                                    
+                                    {/* --- AFFICHAGE DE LA DATE FORMATÉE --- */}
+                                    <td className="p-4 text-gray-600 text-sm font-medium font-mono">
+                                        {formatDate(job.updated_at)}
+                                    </td>
+
                                     <td className="p-4 text-right">
                                         {job.status === 'running' ? (
                                             <button
@@ -247,14 +224,14 @@ export default function JobDashboard({ jobs: initialJobs }) {
                             ))}
                         </tbody>
                     </table>
+                    
+                    {jobs.length === 0 && (
+                        <div className="text-center py-20">
+                            <CommandLineIcon className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+                            <p className="text-gray-500">Aucun job n'est configuré pour le moment.</p>
+                        </div>
+                    )}
                 </div>
-
-                {jobs.length === 0 && (
-                    <div className="text-center py-20 bg-white rounded-2xl mt-4 border border-dashed border-gray-300">
-                        <CommandLineIcon className="w-12 h-12 text-gray-200 mx-auto mb-4" />
-                        <p className="text-gray-500">Aucun job n'est configuré pour le moment.</p>
-                    </div>
-                )}
             </div>
         </div>
     );

@@ -11,6 +11,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Support\Facades\Log;
 use App\Models\JobTask;
+use App\Services\OracleConnectorService; // ✅ Import du service
 
 class PurgeCdrDetail implements ShouldQueue
 {
@@ -23,7 +24,10 @@ class PurgeCdrDetail implements ShouldQueue
         $this->jobId = $jobId;
     }
 
-    public function handle()
+    /**
+     * handle() avec injection du service OracleConnectorService.
+     */
+    public function handle(OracleConnectorService $oracleService)
     {
         set_time_limit(0);
 
@@ -37,6 +41,12 @@ class PurgeCdrDetail implements ShouldQueue
         }
 
         try {
+            // ✅ 1. Configuration de la connexion dynamique Oracle
+            $oracleService->configureConnection();
+
+            // ✅ 2. Forcer le statut à 'running' pour l'interface
+            $jobModel->update(['status' => 'running']);
+
             $disk = Storage::disk('cdr_storage');
 
             // =========================
@@ -45,8 +55,6 @@ class PurgeCdrDetail implements ShouldQueue
             $mmgFiles = $disk->files('mmg/processed');
 
             foreach ($mmgFiles as $file) {
-
-                // 🔴 STOP CHECK
                 $jobModel->refresh();
                 if ($jobModel->status !== 'running') {
                     Log::warning("Purge stoppée pendant MMG files");
@@ -54,7 +62,6 @@ class PurgeCdrDetail implements ShouldQueue
                 }
 
                 $disk->delete($file);
-
                 usleep(100000);
             }
 
@@ -66,8 +73,6 @@ class PurgeCdrDetail implements ShouldQueue
             $occFiles = $disk->files('occ/processed');
 
             foreach ($occFiles as $file) {
-
-                // 🔴 STOP CHECK
                 $jobModel->refresh();
                 if ($jobModel->status !== 'running') {
                     Log::warning("Purge stoppée pendant OCC files");
@@ -75,14 +80,13 @@ class PurgeCdrDetail implements ShouldQueue
                 }
 
                 $disk->delete($file);
-
                 usleep(100000);
             }
 
             Log::info("OCC processed supprimé");
 
             // =========================
-            // 🔴 PARTIE 3 : DB MMG
+            // 🔴 PARTIE 3 : DB MMG (Connexion Dynamique)
             // =========================
             $jobModel->refresh();
             if ($jobModel->status !== 'running') {
@@ -90,13 +94,13 @@ class PurgeCdrDetail implements ShouldQueue
                 return;
             }
 
-            $deletedMmg = DB::affectingStatement("
+            $deletedMmg = DB::connection('oracle_dynamic')->affectingStatement("
                 DELETE FROM RA_T_MMG_CDR_DETAIL 
                 WHERE START_DATE < SYSDATE - 30
             ");
 
             // =========================
-            // 🔴 PARTIE 4 : DB OCC
+            // 🔴 PARTIE 4 : DB OCC (Connexion Dynamique)
             // =========================
             $jobModel->refresh();
             if ($jobModel->status !== 'running') {
@@ -104,7 +108,7 @@ class PurgeCdrDetail implements ShouldQueue
                 return;
             }
 
-            $deletedOcc = DB::affectingStatement("
+            $deletedOcc = DB::connection('oracle_dynamic')->affectingStatement("
                 DELETE FROM RA_T_OCC_CDR_DETAIL 
                 WHERE START_DATE < SYSDATE - 30
             ");
@@ -119,24 +123,20 @@ class PurgeCdrDetail implements ShouldQueue
             if ($jobModel->status === 'running') {
                 $jobModel->update([
                     'status' => 'success',
-                    'finished_at' => now()
+                    'updated_at' => now() // Correction : utiliser updated_at pour la cohérence
                 ]);
-
-                DB::commit();
             }
 
             Log::info("=== END PURGE SUCCESS ===");
 
         } catch (\Exception $e) {
-
-            $jobModel->update([
-                'status' => 'failed',
-                'finished_at' => now()
-            ]);
-
-            DB::commit();
-
-            Log::error("Erreur purge : " . $e->getMessage());
+            if ($jobModel) {
+                $jobModel->update([
+                    'status' => 'failed',
+                    'updated_at' => now()
+                ]);
+            }
+            Log::error("Erreur purge [ID: {$this->jobId}] : " . $e->getMessage());
         }
     }
 }

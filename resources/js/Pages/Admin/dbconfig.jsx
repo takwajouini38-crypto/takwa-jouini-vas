@@ -41,41 +41,59 @@ export default function DbConfig({ configs = [], auth }) {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    // Soumission du formulaire (Enregistrer ou Mettre à jour)
     const handleSubmit = (e) => {
         e.preventDefault();
         
         if (editMode) {
-            // Appel à la route PUT admin.db.update
-            put(route('admin.db.update', data.id), {
+            router.post(route('admin.db.update', { id: data.id }), {
+                ...data,
+                _method: 'put', 
+            }, {
                 onSuccess: () => {
                     setEditMode(false);
                     reset();
+                    setTestStatus(null);
+                },
+                onError: (errors) => {
+                    console.error("Erreurs de validation :", errors);
                 }
             });
         } else {
-            // Appel à la route POST admin.db.store
             post(route('admin.db.store'), {
-                onSuccess: () => reset(),
+                onSuccess: () => {
+                    reset();
+                    setTestStatus(null);
+                },
             });
         }
     };
 
     // Suppression d'une ligne
     const handleDelete = (id) => {
-    if (confirm("Êtes-vous sûr de vouloir supprimer cette configuration Oracle ?")) {
-        // Correction ici : Assurez-vous que le nom est 'admin.db.destroy'
-        destroy(route('admin.db.destroy', { id: id }), {
+        if (confirm("Êtes-vous sûr de vouloir supprimer cette configuration Oracle ?")) {
+            router.post(route('admin.db.destroy', { id: id }), {
+                _method: "delete",
+            }, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    console.log("Suppression réussie");
+                },
+                onError: (errors) => {
+                    console.error("Erreur lors de la suppression", errors);
+                },
+            });
+        }
+    };
+
+    // --- NOUVELLE FONCTION : ACTIVER UN SERVEUR ---
+    const handleActivate = (id) => {
+        router.post(route('admin.db.active', id), {}, {
+            preserveScroll: true,
             onSuccess: () => {
-                // Optionnel : ajouter un log pour confirmer
-                console.log("Suppression réussie");
-            },
-            onError: (errors) => {
-                console.error("Erreur de suppression", errors);
+                console.log("Serveur activé avec succès");
             }
         });
-    }
-};
+    };
 
     // Test de connexion sans enregistrer
     const handleTest = async () => {
@@ -281,6 +299,17 @@ export default function DbConfig({ configs = [], auth }) {
                                             )}
                                         </td>
                                         <td className="p-6 text-right space-x-2">
+                                            {/* Bouton Activer (Uniquement si inactif) */}
+                                            {!config.is_active && (
+                                                <button 
+                                                    onClick={() => handleActivate(config.id)}
+                                                    className="p-3 text-green-600 hover:bg-green-50 rounded-xl transition-colors"
+                                                    title="Définir comme actif"
+                                                >
+                                                    <ShieldCheckIcon className="w-5 h-5" />
+                                                </button>
+                                            )}
+                                            
                                             <button 
                                                 onClick={() => handleEdit(config)} 
                                                 className="p-3 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors"

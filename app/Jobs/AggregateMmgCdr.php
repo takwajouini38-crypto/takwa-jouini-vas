@@ -10,6 +10,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use App\Models\JobTask;
 use Illuminate\Support\Facades\Log;
+use App\Services\OracleConnectorService; // ✅ Import du service
 
 class AggregateMmgCdr implements ShouldQueue
 {
@@ -22,7 +23,10 @@ class AggregateMmgCdr implements ShouldQueue
         $this->jobId = $jobId;
     }
 
-    public function handle()
+    /**
+     * handle() avec injection du service de connexion.
+     */
+    public function handle(OracleConnectorService $oracleService)
     {
         set_time_limit(0);
 
@@ -36,24 +40,32 @@ class AggregateMmgCdr implements ShouldQueue
         }
 
         try {
+            // ✅ 1. Configuration de la connexion dynamique (oracle_dynamic)
+            $oracleService->configureConnection();
+
+            // ✅ Passage en 'running'
+            $jobModel->update(['status' => 'running']);
 
             // 🔴 CHECK AVANT TRUNCATE
             $jobModel->refresh();
             if ($jobModel->status !== 'running') {
-                Log::warning("Job stoppé avant TRUNCATE");
+                Log::warning("Job {$this->jobId} stoppé avant TRUNCATE");
                 return;
             }
 
-            DB::statement("TRUNCATE TABLE RA_T_MMG_AGG");
+            // ✅ TRUNCATE via connexion dynamique
+            DB::connection('oracle_dynamic')->statement("TRUNCATE TABLE RA_T_MMG_AGG");
+            Log::info("Table RA_T_MMG_AGG vidée.");
 
             // 🔴 CHECK AVANT INSERT
             $jobModel->refresh();
             if ($jobModel->status !== 'running') {
-                Log::warning("Job stoppé avant INSERT");
+                Log::warning("Job {$this->jobId} stoppé avant INSERT");
                 return;
             }
 
-            DB::statement("
+            // ✅ INSERT (Agrégation BI) via connexion dynamique
+            DB::connection('oracle_dynamic')->statement("
                 INSERT INTO RA_T_MMG_AGG
                 SELECT
                     B_MSISDN,
@@ -77,26 +89,27 @@ class AggregateMmgCdr implements ShouldQueue
                     SERVICE_TYPE
             ");
 
+            Log::info("Agrégation terminée dans RA_T_MMG_AGG.");
+
             // ✅ FIN PROPRE
             $jobModel->refresh();
-
             if ($jobModel->status === 'running') {
                 $jobModel->update([
                     'status' => 'success',
-                    'finished_at' => now()
+                    'updated_at' => now() 
                 ]);
             }
 
-            Log::info("=== END AGGREGATE MMG SUCCESS ===");
+            Log::info("=== END AGGREGATE MMG SUCCESS [ID: {$this->jobId}] ===");
 
         } catch (\Exception $e) {
-
-            $jobModel->update([
-                'status' => 'failed',
-                'finished_at' => now()
-            ]);
-
-            Log::error("Erreur Aggregate MMG : " . $e->getMessage());
+            if ($jobModel) {
+                $jobModel->update([
+                    'status' => 'failed',
+                    'updated_at' => now()
+                ]);
+            }
+            Log::error("Erreur Aggregate MMG [ID: {$this->jobId}] : " . $e->getMessage());
         }
     }
 }

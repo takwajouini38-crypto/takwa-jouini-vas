@@ -38,6 +38,10 @@ class FetchOccCdr implements ShouldQueue
         }
 
         try {
+            // ✅ CRUCIAL : On force le passage en 'running' dès que le job sort de la file d'attente.
+            // Cela permet à l'interface de s'allumer en vert uniquement pour ce job précis.
+            $jobModel->update(['status' => 'running']);
+
             // Disque local final
             $localFtp = Storage::disk('cdr_storage');
 
@@ -51,7 +55,7 @@ class FetchOccCdr implements ShouldQueue
                 // 🔴 STOP CHECK AVANT CHAQUE FICHIER
                 $jobModel->refresh();
                 if ($jobModel->status !== 'running') {
-                    Log::warning("Job OCC stoppé par l'administrateur");
+                    Log::warning("Job OCC [ID: {$this->jobId}] stoppé par l'administrateur");
                     return;
                 }
 
@@ -62,14 +66,12 @@ class FetchOccCdr implements ShouldQueue
 
                 // 2. RÉCUPÉRATION ET STOCKAGE DIRECT (Optimisé via flux mémoire)
                 $tempStream = fopen('php://temp', 'r+');
-                
-                // Connexion via le service
                 $conn = $ftpService->connect();
                 
-                // 🔴 STOP CHECK AVANT DOWNLOAD
+                // 🔴 STOP CHECK SUPPLÉMENTAIRE AVANT DOWNLOAD
                 if ($jobModel->status !== 'running') {
                     fclose($tempStream);
-                    ftp_close($conn);
+                    if(is_resource($conn)) ftp_close($conn);
                     return;
                 }
 
@@ -93,11 +95,10 @@ class FetchOccCdr implements ShouldQueue
                     Log::info("Fichier OCC déplacé vers processed sur le serveur");
                 } else {
                     fclose($tempStream);
-                    ftp_close($conn);
+                    if(is_resource($conn)) ftp_close($conn);
                     Log::error("Échec du téléchargement OCC pour le fichier : {$filename}");
                 }
 
-                // 🔥 Améliore réactivité du bouton STOP
                 usleep(200000);
             }
 
@@ -106,22 +107,21 @@ class FetchOccCdr implements ShouldQueue
             if ($jobModel->status === 'running') {
                 $jobModel->update([
                     'status' => 'success',
-                    'finished_at' => now()
+                    'updated_at' => now() // Mise à jour du timestamp de fin
                 ]);
 
-                DB::commit();
-                Log::info("=== FETCH OCC SUCCESS ===");
+                // Pas besoin de DB::commit() si tu n'utilises pas DB::beginTransaction()
+                Log::info("=== FETCH OCC SUCCESS [ID: {$this->jobId}] ===");
             }
 
         } catch (\Exception $e) {
-            Log::error("Erreur Fetch OCC : " . $e->getMessage());
+            Log::error("Erreur Fetch OCC [ID: {$this->jobId}] : " . $e->getMessage());
 
             if ($jobModel) {
                 $jobModel->update([
                     'status' => 'failed',
-                    'finished_at' => now()
+                    'updated_at' => now()
                 ]);
-                DB::commit();
             }
         }
     }

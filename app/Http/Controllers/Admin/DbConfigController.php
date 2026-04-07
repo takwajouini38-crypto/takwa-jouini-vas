@@ -61,25 +61,40 @@ class DbConfigController extends Controller
     }
 
     public function update(Request $request, $id)
-    {
-        try {
-            $config = DbConfig::findOrFail($id);
+{
+    // Validation des données entrantes
+    $request->validate([
+        'host'         => 'required|string',
+        'port'         => 'required|integer',
+        'service_name' => 'required|string',
+        'username'     => 'required|string',
+        'password'     => 'nullable|string', // Optionnel en update
+        'is_active'    => 'boolean'
+    ]);
 
-            if ($request->is_active) {
-                DbConfig::where('id', '!=', $id)->update(['is_active' => false]);
-            }
+    try {
+        $config = DbConfig::findOrFail($id);
 
-            $config->fill($request->except('password'));
-            if ($request->filled('password')) {
-                $config->password = $request->password;
-            }
-            $config->save();
-
-            return redirect()->route('admin.db.index')->with('success', 'Mise à jour réussie.');
-        } catch (\Exception $e) {
-            return redirect()->back()->withErrors(['error' => $e->getMessage()]);
+        // Si cette config est activée, on désactive toutes les autres
+        if ($request->is_active) {
+            DbConfig::where('id', '!=', $id)->update(['is_active' => false]);
         }
+
+        // Mise à jour des champs sauf le mot de passe s'il est vide
+        $config->fill($request->except('password'));
+        
+        if ($request->filled('password')) {
+            $config->password = $request->password;
+        }
+        
+        $config->save();
+
+        return redirect()->route('admin.db.index')->with('success', 'Mise à jour réussie.');
+    } catch (\Exception $e) {
+        Log::error("Erreur de mise à jour Oracle ID {$id} : " . $e->getMessage());
+        return redirect()->back()->withErrors(['error' => "Erreur lors de la modification : " . $e->getMessage()]);
     }
+}
 
     public function destroy($id)
     {
@@ -102,4 +117,24 @@ class DbConfigController extends Controller
             'message' => $isConnected ? 'Connexion réussie !' : 'Échec de la connexion Oracle.'
         ]);
     }
+    public function setActive($id)
+{
+    try {
+        // 1. Désactiver toutes les configurations Oracle
+        DbConfig::query()->update(['is_active' => false]);
+
+        // 2. Activer la configuration sélectionnée
+        $config = DbConfig::findOrFail($id);
+        $config->is_active = true;
+        $config->save();
+
+        // 3. (Optionnel) On force le service à configurer la nouvelle connexion immédiatement
+        $this->oracleService->configureConnection();
+
+        return redirect()->back()->with('success', "Le serveur Oracle {$config->host} est désormais la base active.");
+    } catch (\Exception $e) {
+        Log::error("Erreur lors de l'activation Oracle : " . $e->getMessage());
+        return redirect()->back()->withErrors(['error' => "Impossible d'activer ce serveur : " . $e->getMessage()]);
+    }
+}
 }

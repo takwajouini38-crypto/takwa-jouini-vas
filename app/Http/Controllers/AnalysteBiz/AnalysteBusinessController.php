@@ -303,4 +303,78 @@ class AnalysteBusinessController extends Controller
             'Cache-Control' => 'max-age=0',
         ]);
     }
+    // 1. Vue par Fournisseur
+public function revenueByProviderPage(Request $request)
+{
+    $range = RaTOccAgg::select(DB::raw("MIN(start_date) as min_d"), DB::raw("MAX(start_date) as max_d"))->first();
+    
+    // Sécurité si la base est vide
+    $maxDate = $range->max_d ? Carbon::parse($range->max_d) : now();
+    $startDate = $request->start_date ?? $maxDate->copy()->startOfMonth()->toDateString();
+    $endDate = $request->end_date ?? $maxDate->toDateString();
+    
+    // Récupération de la granularité pour le front
+    $granularity = $request->granularity ?? 'jour'; 
+
+    $sumRevenueRaw = 'SUM(TO_NUMBER(REPLACE(charge_amount, \',\', \'.\')))';
+
+    // 1. Récupération des fournisseurs
+    $revenueByProvider = RaTOccAgg::join('services_sms_plus', 'ra_t_occ_agg.keyword', '=', 'services_sms_plus.keyword')
+        ->select(
+            'services_sms_plus.nom_fournisseur', 
+            DB::raw("CAST($sumRevenueRaw AS FLOAT) as total")
+        )
+        ->whereRaw("start_date BETWEEN TO_DATE(?, 'YYYY-MM-DD') AND TO_DATE(?, 'YYYY-MM-DD')", [$startDate, $endDate])
+        ->groupBy('services_sms_plus.nom_fournisseur')
+        ->orderBy('total', 'desc')
+        ->get();
+
+    // 2. Récupération des détails par service
+    $servicesDetail = RaTOccAgg::join('services_sms_plus', 'ra_t_occ_agg.keyword', '=', 'services_sms_plus.keyword')
+        ->select(
+            'services_sms_plus.nom_fournisseur', 
+            'services_sms_plus.nom_service', 
+            DB::raw("CAST($sumRevenueRaw AS FLOAT) as total")
+        )
+        ->whereRaw("start_date BETWEEN TO_DATE(?, 'YYYY-MM-DD') AND TO_DATE(?, 'YYYY-MM-DD')", [$startDate, $endDate])
+        ->groupBy('services_sms_plus.nom_fournisseur', 'services_sms_plus.nom_service')
+        ->get();
+
+    // 3. Fusion des données
+    $dataWithServices = $revenueByProvider->map(function ($provider) use ($servicesDetail) {
+        $provider->services = $servicesDetail->where('nom_fournisseur', $provider->nom_fournisseur)
+                                             ->values()
+                                             ->toArray();
+        return $provider;
+    });
+
+    return Inertia::render('AnalysteBiz/RevenueByProvider', [
+        'data'        => $dataWithServices,
+        'startDate'   => $startDate,
+        'endDate'     => $endDate,
+        'granularity' => $granularity
+    ]);
+}
+// 2. Vue par Service
+public function revenueByServicePage(Request $request)
+{
+    $range = RaTOccAgg::select(DB::raw("MIN(start_date) as min_d"), DB::raw("MAX(start_date) as max_d"))->first();
+    $startDate = $request->start_date ?? Carbon::parse($range->max_d)->startOfMonth()->toDateString();
+    $endDate = $request->end_date ?? Carbon::parse($range->max_d)->toDateString();
+
+    $revenueByService = RaTOccAgg::join('services_sms_plus', 'ra_t_occ_agg.keyword', '=', 'services_sms_plus.keyword')
+        ->select('services_sms_plus.nom_service', DB::raw('SUM(TO_NUMBER(REPLACE(charge_amount, \',\', \'.\'))) as "total"'))
+        ->whereRaw("start_date BETWEEN TO_DATE(?, 'YYYY-MM-DD') AND TO_DATE(?, 'YYYY-MM-DD')", [$startDate, $endDate])
+        ->groupBy('services_sms_plus.nom_service')
+        ->orderBy(DB::raw('SUM(TO_NUMBER(REPLACE(charge_amount, \',\', \'.\')))'), 'desc')
+        // On peut augmenter la limite car on est en plein écran
+        
+        ->get();
+
+    return Inertia::render('AnalysteBiz/RevenueByService', [
+        'data' => $revenueByService,
+        'startDate' => $startDate,
+        'endDate' => $endDate
+    ]);
+}
 }

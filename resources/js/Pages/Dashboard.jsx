@@ -3,9 +3,8 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
 import {
     UsersIcon,
-    ServerIcon,
     CloudIcon,
-    ClockIcon,
+    CircleStackIcon, // Ajoutez cette icône
 } from '@heroicons/react/24/outline';
 
 export default function Dashboard() {
@@ -21,18 +20,11 @@ export default function Dashboard() {
             color: 'from-blue-500 to-blue-600',
         },
         {
-            title: 'Services SMS',
-            description: 'Gestion des services SMS',
-            icon: ServerIcon,
-            route: '/services',
+            title: 'Base de Données',
+            description: 'Configuration de la base de données',
+            icon: CircleStackIcon,
+            route: '/admin/db', // Assurez-vous que cette route existe
             color: 'from-green-500 to-green-600',
-        },
-        {
-            title: 'Jobs',
-            description: 'Suivi des jobs',
-            icon: ClockIcon,
-            route: '/suivi-jobs',
-            color: 'from-yellow-500 to-yellow-600',
         },
         {
             title: 'FTP',
@@ -58,7 +50,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* MODULES */}
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
 
                     {modules.map((m, i) => {
                         const Icon = m.icon;
@@ -102,16 +94,9 @@ export default function Dashboard() {
                     </div>
 
                     <div className="bg-white p-6 rounded-2xl shadow-md border hover:shadow-lg transition">
-                        <p className="text-gray-500">Services SMS</p>
+                        <p className="text-gray-500">Configurations Base de Données</p>
                         <p className="text-3xl font-bold text-green-600 mt-2">
-                            {stats.services ?? 0}
-                        </p>
-                    </div>
-
-                    <div className="bg-white p-6 rounded-2xl shadow-md border hover:shadow-lg transition">
-                        <p className="text-gray-500">Jobs</p>
-                        <p className="text-3xl font-bold text-purple-600 mt-2">
-                            {stats.jobs ?? 0}
+                            {stats.db_configs ?? 0}
                         </p>
                     </div>
 

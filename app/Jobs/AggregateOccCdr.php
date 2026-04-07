@@ -10,6 +10,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use App\Models\JobTask;
 use Illuminate\Support\Facades\Log;
+use App\Services\OracleConnectorService; // ✅ Import du service
 
 class AggregateOccCdr implements ShouldQueue
 {
@@ -22,7 +23,10 @@ class AggregateOccCdr implements ShouldQueue
         $this->jobId = $jobId;
     }
 
-    public function handle()
+    /**
+     * handle() avec injection du service OracleConnectorService.
+     */
+    public function handle(OracleConnectorService $oracleService)
     {
         set_time_limit(0);
 
@@ -36,66 +40,75 @@ class AggregateOccCdr implements ShouldQueue
         }
 
         try {
+            // ✅ 1. Configuration de la connexion dynamique
+            $oracleService->configureConnection();
+
+            // ✅ Forcer le statut à 'running'
+            $jobModel->update(['status' => 'running']);
 
             // 🔴 CHECK AVANT TRUNCATE
             $jobModel->refresh();
             if ($jobModel->status !== 'running') {
-                Log::warning("Job stoppé avant TRUNCATE");
+                Log::warning("Job {$this->jobId} stoppé avant TRUNCATE");
                 return;
             }
 
-            DB::statement("TRUNCATE TABLE RA_T_OCC_AGG");
+            // ✅ TRUNCATE via connexion dynamique
+            DB::connection('oracle_dynamic')->statement("TRUNCATE TABLE RA_T_OCC_AGG");
+            Log::info("Table RA_T_OCC_AGG vidée.");
 
             // 🔴 CHECK AVANT INSERT
             $jobModel->refresh();
             if ($jobModel->status !== 'running') {
-                Log::warning("Job stoppé avant INSERT");
+                Log::warning("Job {$this->jobId} stoppé avant INSERT");
                 return;
             }
 
-            DB::statement("
-INSERT INTO RA_T_OCC_AGG
-SELECT
-    B_MSISDN,
-    START_DATE,
-    START_HOUR,
-    CALL_TYPE,
-    EVENT_TYPE,
-    SUBSCRIBER_TYPE,
-    KEYWORD,
-    COUNT(*) AS CDR_COUNT,
-    SUM(CHARGE_AMOUNT) AS CHARGE_AMOUNT
-FROM RA_T_OCC_CDR_DETAIL
-GROUP BY
-    B_MSISDN,
-    START_DATE,
-    START_HOUR,
-    CALL_TYPE,
-    EVENT_TYPE,
-    SUBSCRIBER_TYPE,
-    KEYWORD
+            // ✅ INSERT (BI Aggregation) via connexion dynamique
+            DB::connection('oracle_dynamic')->statement("
+                INSERT INTO RA_T_OCC_AGG
+                SELECT
+                    B_MSISDN,
+                    START_DATE,
+                    START_HOUR,
+                    CALL_TYPE,
+                    EVENT_TYPE,
+                    SUBSCRIBER_TYPE,
+                    KEYWORD,
+                    COUNT(*) AS CDR_COUNT,
+                    SUM(CHARGE_AMOUNT) AS CHARGE_AMOUNT
+                FROM RA_T_OCC_CDR_DETAIL
+                GROUP BY
+                    B_MSISDN,
+                    START_DATE,
+                    START_HOUR,
+                    CALL_TYPE,
+                    EVENT_TYPE,
+                    SUBSCRIBER_TYPE,
+                    KEYWORD
             ");
+
+            Log::info("Agrégation OCC terminée avec succès.");
 
             // ✅ FIN PROPRE
             $jobModel->refresh();
-
             if ($jobModel->status === 'running') {
                 $jobModel->update([
                     'status' => 'success',
-                    'finished_at' => now()
+                    'updated_at' => now()
                 ]);
             }
 
-            Log::info("=== END AGGREGATE OCC SUCCESS ===");
+            Log::info("=== END AGGREGATE OCC SUCCESS [ID: {$this->jobId}] ===");
 
         } catch (\Exception $e) {
-
-            $jobModel->update([
-                'status' => 'failed',
-                'finished_at' => now()
-            ]);
-
-            Log::error("Erreur Aggregate OCC : " . $e->getMessage());
+            if ($jobModel) {
+                $jobModel->update([
+                    'status' => 'failed',
+                    'updated_at' => now()
+                ]);
+            }
+            Log::error("Erreur Aggregate OCC [ID: {$this->jobId}] : " . $e->getMessage());
         }
     }
 }
