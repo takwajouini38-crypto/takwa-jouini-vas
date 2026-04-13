@@ -74,14 +74,14 @@ export default function AuthenticatedLayout({ children, title }) {
             name: 'Revenus par Service', 
             // Correction ici : l'URL doit être celle de ton route::get
             href: '/monitoring/analytics/services', 
-            roles: ['analyst_biz', 'analyst_op'], 
+            roles: ['analyst_biz'], 
             icon: Square3Stack3DIcon 
         },
         { 
             name: 'Revenus par Provider', 
             // Correction ici : l'URL doit être celle de ton route::get
             href: '/monitoring/analytics/providers', 
-            roles: ['analyst_biz', 'analyst_op'], 
+            roles: ['analyst_biz'], 
             icon: BriefcaseIcon 
         },
     ]
@@ -105,25 +105,25 @@ export default function AuthenticatedLayout({ children, title }) {
                 { 
                     name: 'Analyses de Revenus', 
                     href: '/monitoring/analytics', 
-                    roles: ['analyst_biz', 'analyst_op'], 
+                    roles: ['analyst_biz'], 
                     icon: ChartBarIcon 
                 },
                 { 
                     name: 'Historique des Alertes', 
                     href: '/monitoring/historique-alertes', 
-                    roles: ['analyst_biz', 'analyst_op'], 
+                    roles: ['analyst_biz'], 
                     icon: BellAlertIcon 
                 },
                 { 
                     name: 'Top 20 Services', 
                     href: '/monitoring/top-services', 
-                    roles: ['analyst_biz', 'analyst_op'], 
+                    roles: ['analyst_biz'], 
                     icon: TrophyIcon 
                 },
                 { 
                     name: 'Recherche MSISDN', 
                     href: '/monitoring/search', 
-                    roles: ['analyst_biz', 'analyst_op'], 
+                    roles: ['analyst_biz'], 
                     icon: MagnifyingGlassIcon 
                 },
             ]
