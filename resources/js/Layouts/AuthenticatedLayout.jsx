@@ -56,7 +56,7 @@ export default function AuthenticatedLayout({ children, title }) {
                     name: 'Tableau de bord Traffic', 
                     href: '/analyste-op/traffic', 
                     roles: ['analyst_op'], 
-                    icon: ChartBarIcon 
+                    icon: ChartBarIcon
                 },
                 { 
                     name: 'Suivi des Jobs', 
@@ -70,19 +70,13 @@ export default function AuthenticatedLayout({ children, title }) {
        {
     label: "RAPPORTS DE REVENUS",
     items: [
+        
         { 
-            name: 'Revenus par Service', 
-            // Correction ici : l'URL doit être celle de ton route::get
-            href: '/monitoring/analytics/services', 
-            roles: ['analyst_biz'], 
-            icon: Square3Stack3DIcon 
-        },
-        { 
-            name: 'Revenus par Provider', 
+            name: 'Dashboard Revenus SMS+', 
             // Correction ici : l'URL doit être celle de ton route::get
             href: '/monitoring/analytics/providers', 
             roles: ['analyst_biz'], 
-            icon: BriefcaseIcon 
+            icon:  ChartBarIcon 
         },
     ]
 },
@@ -102,12 +96,6 @@ export default function AuthenticatedLayout({ children, title }) {
         {
             label: "ANALYSES & INSIGHTS (VAS)",
             items: [
-                { 
-                    name: 'Analyses de Revenus', 
-                    href: '/monitoring/analytics', 
-                    roles: ['analyst_biz'], 
-                    icon: ChartBarIcon 
-                },
                 { 
                     name: 'Historique des Alertes', 
                     href: '/monitoring/historique-alertes', 

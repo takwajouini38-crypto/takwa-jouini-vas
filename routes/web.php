@@ -34,8 +34,6 @@ Route::middleware(['auth', 'checkrole:analyst_biz'])->prefix('monitoring')->grou
     Route::patch('/alerts/{alert}', [AlertController::class, 'updateMotif'])->name('alerts.update');
     // Nouvelles routes séparées
     Route::get('/analytics/providers', [AnalysteBusinessController::class, 'revenueByProviderPage'])->name('analyste.providers');
-    Route::get('/analytics/services', [AnalysteBusinessController::class, 'revenueByServicePage'])->name('analyste.services');
-    Route::get('/analytics', [AnalysteBusinessController::class, 'analytics'])->name('analyste.analytics');
     Route::get('/top-services', [AnalysteBusinessController::class, 'topServicesPage'])->name('analyste.top');
     Route::get('/search', [AnalysteBusinessController::class, 'searchPage'])->name('analyste.search');
     Route::post('/bulk-search', [AnalysteBusinessController::class, 'execBulkSearch'])->name('analyste.bulk.search');
