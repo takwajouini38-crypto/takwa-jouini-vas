@@ -16,56 +16,7 @@ use PhpOffice\PhpSpreadsheet\Cell\DataType;
 
 class AnalysteBusinessController extends Controller
 {
-    public function analytics(Request $request)
-    {
-        $range = RaTOccAgg::select(
-            DB::raw("MIN(start_date) as min_d"),
-            DB::raw("MAX(start_date) as max_d")
-        )->first();
-
-        $defaultEnd = $range->max_d ? Carbon::parse($range->max_d)->toDateString() : now()->toDateString();
-        $defaultStart = $range->max_d ? Carbon::parse($range->max_d)->startOfMonth()->toDateString() : now()->startOfMonth()->toDateString();
-
-        $startDate = $request->start_date ?? $defaultStart;
-        $endDate = $request->end_date ?? $defaultEnd;
-
-        $sumRevenueRaw = 'SUM(TO_NUMBER(REPLACE(charge_amount, \',\', \'.\')))';
-
-        $revenueByProvider = RaTOccAgg::join('services_sms_plus', 'ra_t_occ_agg.keyword', '=', 'services_sms_plus.keyword')
-            ->select('services_sms_plus.nom_fournisseur', DB::raw($sumRevenueRaw . ' as "total"'))
-            ->whereRaw("start_date BETWEEN TO_DATE(?, 'YYYY-MM-DD') AND TO_DATE(?, 'YYYY-MM-DD')", [$startDate, $endDate])
-            ->groupBy('services_sms_plus.nom_fournisseur')
-            ->orderBy(DB::raw($sumRevenueRaw), 'desc')
-            ->get();
-
-        $revenueByService = RaTOccAgg::join('services_sms_plus', 'ra_t_occ_agg.keyword', '=', 'services_sms_plus.keyword')
-            ->select('services_sms_plus.nom_service', DB::raw('SUM(TO_NUMBER(REPLACE(charge_amount, \',\', \'.\'))) as "total"'))
-            ->whereRaw("start_date BETWEEN TO_DATE(?, 'YYYY-MM-DD') AND TO_DATE(?, 'YYYY-MM-DD')", [$startDate, $endDate])
-            ->groupBy('services_sms_plus.nom_service')
-            ->orderBy(DB::raw('SUM(TO_NUMBER(REPLACE(charge_amount, \',\', \'.\')))'), 'desc')
-            ->limit(8)
-            ->get();
-
-        $revenueByDay = RaTOccAgg::whereRaw("start_date BETWEEN TO_DATE(?, 'YYYY-MM-DD') AND TO_DATE(?, 'YYYY-MM-DD')", [$startDate, $endDate])
-            ->select(DB::raw("TO_CHAR(start_date, 'YYYY-MM-DD') as \"day\""), DB::raw($sumRevenueRaw . ' as "total"'))
-            ->groupBy(DB::raw("TO_CHAR(start_date, 'YYYY-MM-DD')"))
-            ->orderBy(DB::raw("TO_CHAR(start_date, 'YYYY-MM-DD')"), 'asc')
-            ->get();
-
-        $revenueByMonth = RaTOccAgg::select(DB::raw("TO_CHAR(start_date, 'YYYY-MM') as \"month\""), DB::raw($sumRevenueRaw . ' as "total"'))
-            ->groupBy(DB::raw("TO_CHAR(start_date, 'YYYY-MM')"))
-            ->orderBy(DB::raw("TO_CHAR(start_date, 'YYYY-MM')"), 'asc')
-            ->get();
-
-        return Inertia::render('AnalysteBiz/Analytics', [
-            'revenueByProvider' => $revenueByProvider,
-            'revenueByService'  => $revenueByService,
-            'revenueByDay'      => $revenueByDay,
-            'revenueByMonth'    => $revenueByMonth,
-            'startDate'         => $startDate,
-            'endDate'           => $endDate
-        ]);
-    }
+    
 
     public function exportExcel(Request $request) 
     {
