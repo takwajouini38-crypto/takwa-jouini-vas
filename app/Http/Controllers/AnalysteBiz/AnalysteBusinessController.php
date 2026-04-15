@@ -304,81 +304,141 @@ class AnalysteBusinessController extends Controller
         ]);
     }
     // 1. Vue par Fournisseur
+// Dans AnalysteBusinessController.php
+
 public function revenueByProviderPage(Request $request)
 {
-    // 1. Récupération des paramètres
-    $selectedProvider = $request->provider;
-    $selectedService = $request->service; // Nouveau filtre spécifique
-    $granularity = $request->granularity ?? 'mois'; // Par défaut 'mois'
-    $startDate = $request->start_date ?? now()->startOfMonth()->toDateString();
-    $endDate = $request->end_date ?? now()->toDateString();
+    // 1. Récupération des dates depuis la requête
+    $startDate = $request->start_date;
+    $endDate = $request->end_date;
 
-    // 2. Liste de tous les fournisseurs (pour le premier select)
-    $providersList = ServiceSmsPlus::select('nom_fournisseur')->distinct()->get();
-
-    // 3. Liste des services associés au fournisseur (pour le deuxième select)
-    $availableServices = [];
-    if ($selectedProvider) {
-        $availableServices = ServiceSmsPlus::where('nom_fournisseur', $selectedProvider)
-            ->select('nom_service')
-            ->distinct()
-            ->get();
+    // Dates par défaut si vides
+    if (!$startDate || !$endDate) {
+        $range = RaTOccAgg::select(DB::raw("MAX(start_date) as max_d"))->first();
+        $maxDateInDb = $range->max_d ? Carbon::parse($range->max_d) : now();
+        
+        $startDate = $startDate ?: $maxDateInDb->copy()->startOfMonth()->toDateString();
+        $endDate = $endDate ?: $maxDateInDb->toDateString();
     }
 
-    // 4. Premier Histogramme : Revenus par Fournisseur
-    $queryProvider = RaTOccAgg::join('services_sms_plus', 'ra_t_occ_agg.keyword', '=', 'services_sms_plus.keyword')
-        ->select('services_sms_plus.nom_fournisseur', DB::raw("SUM(TO_NUMBER(REPLACE(charge_amount, ',', '.'))) as total"))
-        ->whereRaw("start_date BETWEEN TO_DATE(?, 'YYYY-MM-DD') AND TO_DATE(?, 'YYYY-MM-DD')", [$startDate, $endDate]);
+    // 2. VÉRIFICATION : Est-ce que les dates existent dans la base de données ?
+    // On vérifie si start_date et end_date existent individuellement
+    $startExists = RaTOccAgg::whereRaw("TRUNC(start_date) = TO_DATE(?, 'YYYY-MM-DD')", [$startDate])->exists();
+    $endExists = RaTOccAgg::whereRaw("TRUNC(start_date) = TO_DATE(?, 'YYYY-MM-DD')", [$endDate])->exists();
 
-    if ($selectedProvider) {
-        $queryProvider->where('services_sms_plus.nom_fournisseur', $selectedProvider);
+    // Si l'une des dates n'existe pas, on initialise des données vides
+    if (!$startExists || !$endExists) {
+        return Inertia::render('AnalysteBiz/RevenueByProvider', [
+            'providers' => ServiceSmsPlus::select('nom_fournisseur')->distinct()->get(),
+            'availableServices' => [],
+            'revenueData' => [],
+            'servicesDetail' => [],
+            'xAxisKey' => 'nom_service',
+            'filters' => [
+                'provider'   => $request->provider,
+                'service'    => $request->service,
+                'start_date' => $startDate,
+                'end_date'   => $endDate,
+            ]
+        ]);
     }
-    $revenueData = $queryProvider->groupBy('services_sms_plus.nom_fournisseur')->get();
 
-    // 5. Deuxième Histogramme : Logique conditionnelle
-    $detailData = [];
-    $xAxisKey = 'nom_service'; // Par défaut on affiche les noms des services
+    // 3. Requête principale : Revenus par Fournisseur (si les dates existent)
+    $revenueData = RaTOccAgg::join('services_sms_plus', 'ra_t_occ_agg.keyword', '=', 'services_sms_plus.keyword')
+        ->select(
+            'services_sms_plus.nom_fournisseur', 
+            DB::raw("SUM(TO_NUMBER(REPLACE(charge_amount, ',', '.'))) as total")
+        )
+        ->whereRaw("TRUNC(start_date) >= TO_DATE(?, 'YYYY-MM-DD')", [$startDate])
+        ->whereRaw("TRUNC(start_date) <= TO_DATE(?, 'YYYY-MM-DD')", [$endDate])
+        ->groupBy('services_sms_plus.nom_fournisseur')
+        ->get()
+        ->map(fn($item) => [
+            'nom_fournisseur' => $item->nom_fournisseur ?? $item->NOM_FOURNISSEUR,
+            'total' => (float)($item->total ?? $item->TOTAL ?? 0)
+        ]);
 
-    if ($selectedProvider) {
+    // 4. Détail dynamique
+    $detailData = collect([]);
+    $xAxisKey = 'nom_service';
+
+    if ($request->provider && $revenueData->isNotEmpty()) {
         $queryDetail = RaTOccAgg::join('services_sms_plus', 'ra_t_occ_agg.keyword', '=', 'services_sms_plus.keyword')
-            ->where('services_sms_plus.nom_fournisseur', $selectedProvider)
-            ->whereRaw("start_date BETWEEN TO_DATE(?, 'YYYY-MM-DD') AND TO_DATE(?, 'YYYY-MM-DD')", [$startDate, $endDate]);
+            ->where('services_sms_plus.nom_fournisseur', $request->provider)
+            ->whereRaw("TRUNC(start_date) >= TO_DATE(?, 'YYYY-MM-DD')", [$startDate])
+            ->whereRaw("TRUNC(start_date) <= TO_DATE(?, 'YYYY-MM-DD')", [$endDate]);
 
-        if ($selectedService) {
-            // SI SERVICE SÉLECTIONNÉ : On affiche l'évolution temporelle
+        if ($request->service) {
             $xAxisKey = 'date_label';
-            $dateFormat = ($granularity === 'jour') ? 'YYYY-MM-DD' : 'YYYY-MM';
-            
-            $detailData = $queryDetail->where('services_sms_plus.nom_service', $selectedService)
+            $detailData = $queryDetail->where('services_sms_plus.nom_service', $request->service)
                 ->select(
-                    DB::raw("TO_CHAR(start_date, '$dateFormat') as date_label"),
+                    DB::raw("TO_CHAR(start_date, 'YYYY-MM-DD') as date_label"),
                     DB::raw("SUM(TO_NUMBER(REPLACE(charge_amount, ',', '.'))) as total")
                 )
-                ->groupBy(DB::raw("TO_CHAR(start_date, '$dateFormat')"))
-                ->orderBy(DB::raw("TO_CHAR(start_date, '$dateFormat')"), 'asc')
+                ->groupBy(DB::raw("TO_CHAR(start_date, 'YYYY-MM-DD')"))
+                ->orderBy(DB::raw("TO_CHAR(start_date, 'YYYY-MM-DD')"), 'asc')
                 ->get();
         } else {
-            // SI PAS DE SERVICE : On affiche la liste des services du fournisseur
-            $detailData = $queryDetail->select('services_sms_plus.nom_service', DB::raw("SUM(TO_NUMBER(REPLACE(charge_amount, ',', '.'))) as total"))
+            $detailData = $queryDetail->select(
+                    'services_sms_plus.nom_service', 
+                    DB::raw("SUM(TO_NUMBER(REPLACE(charge_amount, ',', '.'))) as total")
+                )
                 ->groupBy('services_sms_plus.nom_service')
+                ->orderBy(DB::raw("SUM(TO_NUMBER(REPLACE(charge_amount, ',', '.')))"), 'desc')
                 ->get();
         }
     }
 
     return Inertia::render('AnalysteBiz/RevenueByProvider', [
-        'providers' => $providersList,
-        'availableServices' => $availableServices,
+        'providers' => ServiceSmsPlus::select('nom_fournisseur')->distinct()->get(),
+        'availableServices' => $request->provider ? ServiceSmsPlus::where('nom_fournisseur', $request->provider)->select('nom_service')->distinct()->get() : [],
         'revenueData' => $revenueData,
-        'servicesDetail' => $detailData,
-        'xAxisKey' => $xAxisKey, // On passe la clé à utiliser pour l'axe X
+        'servicesDetail' => $detailData->map(fn($item) => [
+            $xAxisKey => $item->$xAxisKey ?? $item->{strtoupper($xAxisKey)},
+            'total' => (float)($item->total ?? $item->TOTAL ?? 0)
+        ]),
+        'xAxisKey' => $xAxisKey,
         'filters' => [
-            'provider' => $selectedProvider,
-            'service' => $selectedService,
-            'granularity' => $granularity,
+            'provider'   => $request->provider,
+            'service'    => $request->service,
             'start_date' => $startDate,
-            'end_date' => $endDate
+            'end_date'   => $endDate,
         ]
     ]);
+}
+    /**
+     * Fonction utilitaire pour assainir les dates et corriger le bug 0025
+     */
+    private function sanitizeDate($date, $fallbackDate, $isStartOfMonth = false)
+    {
+        // Si la date commence par "00", on utilise la date limite de la base de données
+        if (!$date || str_starts_with($date, '00')) {
+            $base = $fallbackDate ? Carbon::parse($fallbackDate) : now();
+            return $isStartOfMonth ? $base->startOfMonth()->toDateString() : $base->toDateString();
+        }
+
+        try {
+            return Carbon::parse($date)->toDateString();
+        } catch (\Exception $e) {
+            return now()->toDateString();
+        }
+    }
+/**
+ * Fonction d'aide pour transformer n'importe quel format vers DD/MM/YYYY
+ */
+private function formatDateForOracle($date) {
+    if (empty($date)) return null;
+    
+    try {
+        // Si c'est déjà du DD/MM/YYYY, on ne touche à rien
+        if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $date)) {
+            return $date;
+        }
+        // Sinon on convertit (ex: 2025-10-01 -> 01/10/2025)
+        return \Carbon\Carbon::parse($date)->format('d/m/Y');
+    } catch (\Exception $e) {
+        return $date;
+    }
 }
 // 2. Vue par Service
 public function revenueByServicePage(Request $request)
@@ -402,4 +462,5 @@ public function revenueByServicePage(Request $request)
         'endDate' => $endDate
     ]);
 }
+
 }

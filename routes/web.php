@@ -28,7 +28,7 @@ Route::get('/', function () {
 });
 
 // Remplacer 'role:analyste_biz|analyste_op' par ton propre middleware de rôle
-Route::middleware(['auth', 'checkrole:analyste_biz,analyst_op'])->prefix('monitoring')->group(function () {
+Route::middleware(['auth', 'checkrole:analyst_biz'])->prefix('monitoring')->group(function () {
     
     Route::get('/historique-alertes', [AlertController::class, 'index'])->name('alerts.index');
     Route::patch('/alerts/{alert}', [AlertController::class, 'updateMotif'])->name('alerts.update');
