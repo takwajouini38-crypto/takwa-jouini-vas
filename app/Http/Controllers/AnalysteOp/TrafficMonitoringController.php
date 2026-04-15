@@ -17,13 +17,17 @@ class TrafficMonitoringController extends Controller
 
         try {
             if ($startInput && $endInput) {
+                // On force le parsing du format ISO venant du navigateur
                 $startDate = Carbon::parse($startInput)->startOfDay();
                 $endDate = Carbon::parse($endInput)->endOfDay();
             } else {
+                // Récupération de la dernière date en base (Oracle)
                 $lastDateInDb = DB::table('ra_t_mmg_agg')->max('START_DATE');
+                
                 if ($lastDateInDb) {
+                    // On s'assure que Carbon interprète bien l'année d'Oracle
                     $endDate = Carbon::parse($lastDateInDb)->endOfDay();
-                    $startDate = Carbon::parse($lastDateInDb)->subDays(10)->startOfDay();
+                    $startDate = $endDate->copy()->subDays(10)->startOfDay();
                 } else {
                     $startDate = Carbon::now()->subDays(7)->startOfDay();
                     $endDate = Carbon::now()->endOfDay();
@@ -34,11 +38,13 @@ class TrafficMonitoringController extends Controller
             $endDate = Carbon::now()->endOfDay();
         }
 
+        // Requête MMG
         $mmgSub = DB::table('ra_t_mmg_agg')
             ->select('START_DATE', DB::raw('SUM(CDR_COUNT) as total_mmg'))
             ->whereBetween('START_DATE', [$startDate, $endDate])
             ->groupBy('START_DATE');
 
+        // Requête Principale (Jointure avec OCC)
         $trafficData = DB::table('ra_t_occ_agg as o')
             ->select(
                 'o.START_DATE as date',
@@ -53,6 +59,7 @@ class TrafficMonitoringController extends Controller
             ->orderBy('o.START_DATE', 'asc')
             ->get()
             ->map(function ($item) {
+                // On formate la date pour l'affichage dans Recharts (JJ/MM/AAAA)
                 $item->date = Carbon::parse($item->date)->format('d/m/Y');
                 $maxVal = max($item->mmg_count, $item->occ_count);
                 $item->deviation = $maxVal > 0 
@@ -64,7 +71,7 @@ class TrafficMonitoringController extends Controller
         $stats = [
             'total_mmg' => $trafficData->sum('mmg_count'),
             'total_occ' => $trafficData->sum('occ_count'),
-            'avg_deviation' => round($trafficData->avg('deviation'), 2),
+            'avg_deviation' => $trafficData->count() > 0 ? round($trafficData->avg('deviation'), 2) : 0,
             'alert_days' => $trafficData->where('deviation', '>', 5)->count(),
         ];
 
@@ -72,8 +79,9 @@ class TrafficMonitoringController extends Controller
             'data' => $trafficData,
             'stats' => $stats,
             'filters' => [
-                'start_date' => $startDate->format('Y-m-d'),
-                'end_date' => $endDate->format('Y-m-d')
+                // TRÈS IMPORTANT : format Y-m-d pour React
+                'start_date' => $startDate->toDateString(), 
+                'end_date' => $endDate->toDateString()
             ]
         ]);
     }
