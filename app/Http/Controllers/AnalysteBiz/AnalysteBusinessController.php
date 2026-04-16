@@ -96,56 +96,56 @@ class AnalysteBusinessController extends Controller
         ]);
     }
 
-    public function dashboard(Request $request)
-    {
-        $range = RaTOccAgg::select(DB::raw("MIN(start_date) as min_d"), DB::raw("MAX(start_date) as max_d"))->first();
-        $startDate = $request->start_date ?? ($range->max_d ? Carbon::parse($range->max_d)->startOfMonth()->toDateString() : now()->startOfMonth()->toDateString());
-        $endDate = $request->end_date ?? ($range->max_d ? Carbon::parse($range->max_d)->toDateString() : now()->toDateString());
-        $sumRaw = 'SUM(TO_NUMBER(REPLACE(charge_amount, \',\', \'.\')))';
+   public function dashboard(Request $request)
+{
+    // 1. Détermination de la période (Dernier mois disponible dans la base)
+    $range = RaTOccAgg::select(DB::raw("MIN(start_date) as min_d"), DB::raw("MAX(start_date) as max_d"))->first();
+    
+    // Si la base est vide, on évite les erreurs de Carbon
+    $maxDateRaw = $range->max_d ?? now()->toDateString();
+    
+    $startDate = $request->start_date ?? Carbon::parse($maxDateRaw)->startOfMonth()->toDateString();
+    $endDate = $request->end_date ?? Carbon::parse($maxDateRaw)->toDateString();
+    
+    $sumRaw = 'SUM(TO_NUMBER(REPLACE(charge_amount, \',\', \'.\')))';
 
-        $revenueByProvider = RaTOccAgg::join('services_sms_plus', 'ra_t_occ_agg.keyword', '=', 'services_sms_plus.keyword')
-            ->select('services_sms_plus.nom_fournisseur', DB::raw($sumRaw . ' as "total"'))
-            ->whereRaw("start_date BETWEEN TO_DATE(?, 'YYYY-MM-DD') AND TO_DATE(?, 'YYYY-MM-DD')", [$startDate, $endDate])
-            ->groupBy('services_sms_plus.nom_fournisseur')
-            ->orderBy(DB::raw($sumRaw), 'desc')
-            ->get();
+    // 2. Calcul du nombre total de fournisseurs (Statistique globale)
+    $providersCount = ServiceSmsPlus::distinct('nom_fournisseur')->count('nom_fournisseur');
 
-        $revenueByDay = RaTOccAgg::select(DB::raw("TO_CHAR(start_date, 'YYYY-MM-DD') as \"day\""), DB::raw($sumRaw . ' as "total"'))
-            ->whereRaw("start_date BETWEEN TO_DATE(?, 'YYYY-MM-DD') AND TO_DATE(?, 'YYYY-MM-DD')", [$startDate, $endDate])
-            ->groupBy(DB::raw("TO_CHAR(start_date, 'YYYY-MM-DD')"))
-            ->orderBy(DB::raw("\"day\""), 'asc')
-            ->get();
+    // 3. Calcul du Revenu Total pour la période sélectionnée
+    // On utilise la table agrégée pour plus de performance
+    $totalRevenue = RaTOccAgg::whereRaw("start_date BETWEEN TO_DATE(?, 'YYYY-MM-DD') AND TO_DATE(?, 'YYYY-MM-DD')", [$startDate, $endDate])
+        ->select(DB::raw($sumRaw . ' as total'))
+        ->first()
+        ->total ?? 0;
 
-        return Inertia::render('AnalysteBiz/BizMainView', [
-            'revenueByProvider' => $revenueByProvider,
-            'revenueByDay'      => $revenueByDay,
-            'startDate'         => $startDate,
-            'endDate'           => $endDate,
-        ]);
-    }
+    // 4. Données pour le graphique par fournisseur
+    $revenueByProvider = RaTOccAgg::join('services_sms_plus', 'ra_t_occ_agg.keyword', '=', 'services_sms_plus.keyword')
+        ->select('services_sms_plus.nom_fournisseur', DB::raw($sumRaw . ' as "total"'))
+        ->whereRaw("start_date BETWEEN TO_DATE(?, 'YYYY-MM-DD') AND TO_DATE(?, 'YYYY-MM-DD')", [$startDate, $endDate])
+        ->groupBy('services_sms_plus.nom_fournisseur')
+        ->orderBy(DB::raw($sumRaw), 'desc')
+        ->get();
 
-    public function topServicesPage(Request $request)
-    {
-        $range = RaTOccAgg::select(DB::raw("MIN(start_date) as min_d"), DB::raw("MAX(start_date) as max_d"))->first();
-        $startDate = $request->start_date ?? ($range->max_d ? Carbon::parse($range->max_d)->startOfMonth()->toDateString() : now()->startOfMonth()->toDateString());
-        $endDate = $request->end_date ?? ($range->max_d ? Carbon::parse($range->max_d)->toDateString() : now()->toDateString());
-        $sumRaw = 'SUM(TO_NUMBER(REPLACE(charge_amount, \',\', \'.\')))';
+    // 5. Données pour le graphique temporel (Revenu par jour)
+    $revenueByDay = RaTOccAgg::select(DB::raw("TO_CHAR(start_date, 'YYYY-MM-DD') as \"day\""), DB::raw($sumRaw . ' as "total"'))
+        ->whereRaw("start_date BETWEEN TO_DATE(?, 'YYYY-MM-DD') AND TO_DATE(?, 'YYYY-MM-DD')", [$startDate, $endDate])
+        ->groupBy(DB::raw("TO_CHAR(start_date, 'YYYY-MM-DD')"))
+        ->orderBy(DB::raw("\"day\""), 'asc')
+        ->get();
 
-        $topServices = RaTOccAgg::join('services_sms_plus', 'ra_t_occ_agg.keyword', '=', 'services_sms_plus.keyword')
-            ->select('services_sms_plus.nom_service', 'services_sms_plus.nom_fournisseur', DB::raw($sumRaw . ' as "total_revenue"'))
-            ->whereRaw("start_date BETWEEN TO_DATE(?, 'YYYY-MM-DD') AND TO_DATE(?, 'YYYY-MM-DD')", [$startDate, $endDate])
-            ->groupBy('services_sms_plus.nom_service', 'services_sms_plus.nom_fournisseur')
-            ->orderBy(DB::raw($sumRaw), 'desc')
-            ->limit(20)
-            ->get();
-
-        return Inertia::render('AnalysteBiz/TopServices', [
-            'topServices' => $topServices,
-            'startDate'   => $startDate,
-            'endDate'     => $endDate,
-        ]);
-    }
-
+    // 6. Retour vers Inertia avec les nouvelles stats
+    return Inertia::render('AnalysteBiz/BizMainView', [
+        'stats' => [
+            'total_providers' => $providersCount,
+            'period_revenue'  => (float)$totalRevenue,
+        ],
+        'revenueByProvider' => $revenueByProvider,
+        'revenueByDay'      => $revenueByDay,
+        'startDate'         => $startDate,
+        'endDate'           => $endDate,
+    ]);
+}
     public function searchPage()
     {
         return Inertia::render('AnalysteBiz/MsisdnSearch', ['results' => null]);

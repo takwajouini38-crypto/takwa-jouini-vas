@@ -14,17 +14,13 @@ use App\Http\Controllers\AnalysteBiz\AnalysteBusinessController;
 use App\Http\Controllers\AnalysteOp\AnalysteOpController;
 use App\Http\Controllers\AnalysteOp\TrafficMonitoringController;
 use App\Http\Controllers\AlertController;
+use App\Http\Controllers\ServiceProviderController;
 
 Route::resource('services', ServiceSmsPlusController::class)->except(['show']);
-
+Route::resource('providers', ServiceProviderController::class);
 // Page d'accueil (publique)
 Route::get('/', function () {
-    return Inertia::render('Welcome', [
-        'canLogin' => Route::has('login'),
-        'canRegister' => Route::has('register'),
-        'laravelVersion' => Application::VERSION,
-        'phpVersion' => PHP_VERSION,
-    ]);
+    return redirect()->route('login');
 });
 
 // Remplacer 'role:analyste_biz|analyste_op' par ton propre middleware de rôle

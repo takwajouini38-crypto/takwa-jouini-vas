@@ -37,15 +37,24 @@ class HandleInertiaRequests extends Middleware
         ];
     }*/
     public function share(Request $request): array
-{
-    return array_merge(parent::share($request), [
-        'auth' => [
-            'user' => $request->user(),
-        ],
+    {
+        return array_merge(parent::share($request), [
+            // Partage des informations d'authentification
+            'auth' => [
+                'user' => $request->user(),
+            ],
 
-        'flash' => [
-        'success' => $request->session()->get('success'),
-         ],
-    ]);
-}
+            // Correction du partage des messages Flash
+            // On récupère tout l'objet 'flash' stocké en session
+            'flash' => session('flash'),
+
+            // Force le partage des erreurs de validation
+            // C'est cette partie qui garantit que errors ne sera plus vide {}
+            'errors' => function () use ($request) {
+                return $request->session()->get('errors')
+                    ? $request->session()->get('errors')->getBag('default')->getMessages()
+                    : (object) [];
+            },
+        ]);
+    }
 }

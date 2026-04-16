@@ -41,6 +41,13 @@ export default function AuthenticatedLayout({ children, title }) {
                     roles: ['analyst_biz'], 
                     icon: HomeIcon 
                 },
+                // AJOUT DE LA GESTION DES FOURNISSEURS ICI
+                { 
+                    name: 'Gestion Fournisseurs', 
+                    href: '/providers', 
+                    roles: ['analyst_biz'], 
+                    icon: BriefcaseIcon 
+                },
             ]
         },
         {
