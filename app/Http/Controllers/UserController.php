@@ -119,4 +119,30 @@ class UserController extends Controller
         return redirect()->route('admin.users.index')
                          ->with('success', 'Utilisateur supprimé avec succès');
     }
+
+    public function updatePhoto(Request $request)
+    {
+        $request->validate([
+            // On limite à 2MB et aux formats images classiques
+            'photo' => 'required|image|mimes:jpeg,png,jpg|max:2048',
+        ]);
+
+        $user = auth()->user();
+
+        // 1. Supprimer l'ancienne photo si elle existe pour ne pas encombrer le serveur
+        if ($user->photo) {
+            Storage::disk('public')->delete($user->photo);
+        }
+
+        // 2. Stocker la nouvelle photo dans le dossier 'profiles'
+        $path = $request->file('photo')->store('profiles', 'public');
+
+        // 3. Mettre à jour l'utilisateur
+        $user->update(['photo' => $path]);
+
+        return back()->with('success', 'Photo de profil mise à jour !');
+    }
+
+
+
 }

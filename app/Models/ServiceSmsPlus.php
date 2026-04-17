@@ -10,16 +10,22 @@ class ServiceSmsPlus extends Model
 {
     protected $table = 'services_sms_plus';
     protected $fillable = [
-        'nom_service',
-        'nom_fournisseur',
-        'numero_court',
-        'keyword',
+       'service_name',
+       'short_code',
+       'keyword',
         'type',
-        'prix'
+        'price'
     ];
     protected $casts = [
-        'prix' => 'float',
+        'price' => 'float',
     ];
+
+public function provider()
+{
+    return $this->belongsTo(ServiceProvider::class, 'provider_id');
+}
+
+
 
     // Relation OCC
     public function occAggregates(): HasMany

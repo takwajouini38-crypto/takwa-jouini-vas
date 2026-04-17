@@ -97,9 +97,6 @@ export default function Index({ services }) {
                     Nom Service
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Fournisseur
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Numéro Court
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -120,13 +117,11 @@ export default function Index({ services }) {
                 {services.data.map((service) => (
                   <tr key={service.id} className="hover:bg-gray-50 transition">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {service.nom_service}
+                      {service.service_name}
                     </td>
+      
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {service.nom_fournisseur}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {service.numero_court}
+                      {service.short_code}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {service.keyword}
@@ -135,8 +130,8 @@ export default function Index({ services }) {
                       {service.type}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {parseFloat(service.prix).toLocaleString("fr-FR")}
-</td>
+                          {parseFloat(service.price).toLocaleString("fr-FR")}
+                       </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <Link
                         href={`/services/${service.id}/edit`}

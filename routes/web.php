@@ -16,6 +16,8 @@ use App\Http\Controllers\AnalysteOp\TrafficMonitoringController;
 use App\Http\Controllers\AlertController;
 use App\Http\Controllers\ServiceProviderController;
 
+
+
 Route::resource('services', ServiceSmsPlusController::class)->except(['show']);
 Route::resource('providers', ServiceProviderController::class);
 // Page d'accueil (publique)
@@ -51,6 +53,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::post('/profile/photo', [UserController::class, 'updatePhoto'])->name('profile.photo.update');
 });
 
 Route::middleware(['auth', 'checkrole:admin'])->prefix('admin')->name('admin.')->group(function () {

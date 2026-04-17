@@ -17,9 +17,10 @@ class ServiceProvider extends Model
     ];
 
     // Relation avec les services (si vous voulez lier un fournisseur à ses services SMS+)
-    public function services(): HasMany
-    {
-        // On suppose que ServiceSmsPlus a une colonne fournisseur_id
-        return $this->hasMany(ServiceSmsPlus::class, 'nom_fournisseur', 'nom');
-    }
+   public function services(): HasMany
+{
+    // Plus besoin de préciser provider_name ou nom_fournisseur
+    // Laravel utilisera par défaut provider_id et id
+    return $this->hasMany(ServiceSmsPlus::class, 'provider_id', 'id');
+}
 }

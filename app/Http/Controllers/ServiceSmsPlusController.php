@@ -34,23 +34,22 @@ class ServiceSmsPlusController extends Controller
     }
 
     $validated = $request->validate([
-        'nom_service' => 'required|string|max:255',
-        'nom_fournisseur' => 'required|string|max:255',
-        'numero_court' => 'required|digits_between:4,7',
+        'service_name' => 'required|string|max:255',
+        'short_code' => 'required|digits_between:4,7',
         'keyword' => 'nullable|string|max:255',
         'type' => 'required|string|max:255',
-        'prix' => ['required','numeric','min:0','max:10','regex:/^\d+(\.\d{1,2})?$/']
+        'price' => ['required','numeric','min:0','max:10','regex:/^\d+(\.\d{1,2})?$/']
     ], [
-        'numero_court.required' => 'Le numéro court est obligatoire.',
-        'numero_court.digits_between' => 'Le numéro court doit contenir entre 4 et 7 chiffres.',
-        'prix.min' => 'Le prix doit être positif.',
-        'prix.max' => 'Le prix ne doit pas dépasser 10.',
-        'prix.regex' => 'Le prix doit contenir au maximum 2 décimales.'
+        'short_code.required' => 'Le numéro court est obligatoire.',
+        'short_code.digits_between' => 'Le numéro court doit contenir entre 4 et 7 chiffres.',
+        'price.min' => 'Le prix doit être positif.',
+        'price.max' => 'Le prix ne doit pas dépasser 10.',
+        'price.regex' => 'Le prix doit contenir au maximum 2 décimales.'
     ]);
 
     // Si keyword est vide ou null, on le définit à "_N"
-    if (empty($validated['keyword'])) {
-        $validated['keyword'] = '_N';
+    if (empty($validated['short_code'])) {
+        $validated['short_code'] = '_N';
     }
 
     ServiceSmsPlus::create($validated);
@@ -77,18 +76,17 @@ class ServiceSmsPlusController extends Controller
     }
 
     $validated = $request->validate([
-        'nom_service' => 'required|string|max:255',
-        'nom_fournisseur' => 'required|string|max:255',
-        'numero_court' => 'required|digits_between:4,7',
+        'service_name' => 'required|string|max:255',
+        'short_code' => 'required|digits_between:4,7',
         'keyword' => 'nullable|string|max:255',
         'type' => 'required|string|max:255',
-        'prix' => ['required','numeric','min:0','max:10','regex:/^\d+(\.\d{1,2})?$/']
+        'price' => ['required','numeric','min:0','max:10','regex:/^\d+(\.\d{1,2})?$/']
     ], [
-        'numero_court.required' => 'Le numéro court est obligatoire.',
-        'numero_court.digits_between' => 'Le numéro court doit contenir entre 4 et 7 chiffres.',
-        'prix.min' => 'Le prix doit être positif.',
-        'prix.max' => 'Le prix ne doit pas dépasser 10.',
-        'prix.regex' => 'Le prix doit contenir au maximum 2 décimales.'
+        'short_code.required' => 'Le numéro court est obligatoire.',
+        'short_code.digits_between' => 'Le numéro court doit contenir entre 4 et 7 chiffres.',
+        'price.min' => 'Le prix doit être positif.',
+        'price.max' => 'Le prix ne doit pas dépasser 10.',
+        'price.regex' => 'Le prix doit contenir au maximum 2 décimales.'
     ]);
 
     // Si keyword est vide ou null, on le définit à "_N"

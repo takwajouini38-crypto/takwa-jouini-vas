@@ -52,7 +52,7 @@ export default function RevenueByProvider({ auth, providers, availableServices, 
     const calculateMarketShares = () => {
         if (!revenueData || revenueData.length === 0) return [];
         
-        const totalRevenue = revenueData.reduce((sum, item) => sum + (item.total || 0), 0);
+       const totalRevenue = revenueData.reduce((sum, item) => sum + Number(item.total || 0), 0);
         
         return revenueData.map(item => ({
             name: item.nom_fournisseur,
@@ -129,7 +129,7 @@ export default function RevenueByProvider({ auth, providers, availableServices, 
                             <label className="text-xs font-bold text-gray-500 uppercase text-gray-400">Service</label>
                             <select disabled={!filters.provider} value={filters.service || ''} onChange={(e) => updateFilters({ service: e.target.value })} className="rounded-lg border-gray-300 text-sm w-48 disabled:bg-gray-100">
                                 <option value="">Tous les services</option>
-                                {availableServices?.map((s, i) => <option key={i} value={s.nom_service}>{s.nom_service}</option>)}
+                                {availableServices?.map((s, i) => <option key={i} value={s.service_name}>{s.service_name}</option>)}
                             </select>
                         </div>
                     </div>

@@ -64,47 +64,11 @@ export default function BizMainView({ auth, stats, startDate, endDate, revenueBy
                             </div>
                         </div>
 
-                        {/* Carte : État de la Source Oracle */}
-                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-6 transition-all hover:shadow-md">
-                            <div className="p-4 bg-purple-500 rounded-xl shadow-md shadow-purple-100">
-                                <CircleStackIcon className="h-8 w-8 text-white" />
-                            </div>
-                            <div>
-                                <p className="text-gray-500 font-medium text-sm uppercase tracking-wider">Source Oracle</p>
-                                <div className="flex items-center gap-2">
-                                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                    <p className="text-xl font-bold text-gray-900 uppercase tracking-tighter">Connecté</p>
-                                </div>
-                            </div>
-                        </div>
+                       
 
                     </div>
 
-                    {/* --- BARRE DE PÉRIODE --- */}
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <div className="p-2 bg-indigo-50 rounded-lg text-indigo-500">
-                                <CalendarDaysIcon className="h-6 w-6" />
-                            </div>
-                            <p className="text-gray-600 font-semibold uppercase tracking-wider text-xs">Analyse des données</p>
-                        </div>
-                        <div className="flex gap-12 items-center">
-                            <div className="text-right">
-                                <p className="text-[10px] text-gray-400 uppercase font-bold tracking-widest">Début</p>
-                                <p className="text-lg font-bold text-gray-800">{startDate}</p>
-                            </div>
-                            <div className="h-8 w-px bg-gray-100"></div>
-                            <div className="text-left">
-                                <p className="text-[10px] text-gray-400 uppercase font-bold tracking-widest">Fin</p>
-                                <p className="text-lg font-bold text-gray-800">{endDate}</p>
-                            </div>
-                        </div>
-                    </div>
 
-                    {/* Footer */}
-                    <p className="text-center text-gray-400 text-[10px] font-bold uppercase tracking-[0.3em] pt-8">
-                        Tunisie Télécom — Plateforme de Monitoring Revenue Assurance
-                    </p>
                 </div>
             </div>
         </AuthenticatedLayout>

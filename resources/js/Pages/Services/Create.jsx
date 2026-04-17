@@ -5,12 +5,11 @@ import { ArrowLeftIcon } from "@heroicons/react/24/outline";
 
 export default function Create() {
   const { data, setData, post, processing, errors } = useForm({
-    nom_service: "",
-    nom_fournisseur: "",
-    numero_court: "",
-    keyword: "",
+    service_name: "",
+    short_code: "",
     type: "",
-    prix: "",
+    keyword:"",
+    price: "",
   });
 
   function submit(e) {
@@ -48,56 +47,38 @@ export default function Create() {
             <form onSubmit={submit} className="space-y-6">
               {/* Nom du service */}
               <div>
-                <label htmlFor="nom_service" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="service_name" className="block text-sm font-medium text-gray-700">
                   Nom du service
                 </label>
                 <input
-                  id="nom_service"
+                  id="service_name"
                   type="text"
-                  value={data.nom_service}
-                  onChange={(e) => setData("nom_service", e.target.value)}
+                  value={data.service_name}
+                  onChange={(e) => setData("service_name", e.target.value)}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                   placeholder="Ex: Service Premium"
                   required
                 />
-                {errors.nom_service && (
-                  <p className="mt-2 text-sm text-red-600">{errors.nom_service}</p>
+                {errors.service_name && (
+                  <p className="mt-2 text-sm text-red-600">{errors.service_name}</p>
                 )}
               </div>
 
-              {/* Fournisseur */}
-              <div>
-                <label htmlFor="nom_fournisseur" className="block text-sm font-medium text-gray-700">
-                  Fournisseur
-                </label>
-                <input
-                  id="nom_fournisseur"
-                  type="text"
-                  value={data.nom_fournisseur}
-                  onChange={(e) => setData("nom_fournisseur", e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                  placeholder="Ex: Fournisseur A"
-                  required
-                />
-                {errors.nom_fournisseur && (
-                  <p className="mt-2 text-sm text-red-600">{errors.nom_fournisseur}</p>
-                )}
-              </div>
 
               {/* Numéro court */}
               <div>
-                <label htmlFor="numero_court" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="short_code" className="block text-sm font-medium text-gray-700">
                   Numéro court
                 </label>
                 <input
-                  id="numero_court"
+                  id="short_code"
                   type="text"
-                  value={data.numero_court}
+                  value={data.short_code}
                   onChange={(e) => {
                     const value = e.target.value;
                     // Limite à 7 chiffres max
                     if (/^\d{0,7}$/.test(value)) {
-                      setData("numero_court", value);
+                      setData("short_code", value);
                     }
                   }}
                   maxLength={7}
@@ -106,13 +87,13 @@ export default function Create() {
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                   required
                 />
-                {data.numero_court.length > 7 && (
+                {data.short_code.length > 7 && (
                   <p className="mt-2 text-sm text-red-600">
                     Le numéro court ne doit pas dépasser 7 chiffres.
                   </p>
                 )}
-                {errors.numero_court && (
-                  <p className="mt-2 text-sm text-red-600">{errors.numero_court}</p>
+                {errors.short_code && (
+                  <p className="mt-2 text-sm text-red-600">{errors.short_code}</p>
                 )}
               </div>
 
@@ -155,23 +136,23 @@ export default function Create() {
 
               {/* Prix */}
               <div>
-                <label htmlFor="prix" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="price" className="block text-sm font-medium text-gray-700">
                   Prix
                 </label>
                 <input
-                  id="prix"
+                  id="price"
                   type="number"
                   step="0.01"
                   min="0"
                   max="10"
-                  value={data.prix}
-                  onChange={(e) => setData("prix", e.target.value)}
+                  value={data.price}
+                  onChange={(e) => setData("price", e.target.value)}
                   placeholder="0.00"
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                   required
                 />
-                {errors.prix && (
-                  <p className="mt-2 text-sm text-red-600">{errors.prix}</p>
+                {errors.price && (
+                  <p className="mt-2 text-sm text-red-600">{errors.price}</p>
                 )}
               </div>
 
