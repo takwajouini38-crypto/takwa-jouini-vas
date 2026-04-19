@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Http\Controllers;
-
+use Illuminate\Support\Facades\Storage;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -12,7 +12,7 @@ class UserController extends Controller
     // ✅ Liste des utilisateurs + recherche
     public function index(Request $request)
     {
-        $query = User::select('id', 'name', 'email', 'role', 'created_at');
+        $query = User::select('id', 'name', 'email', 'role', 'created_at','photo');
 
         // 🔍 Recherche
         if ($request->search) {

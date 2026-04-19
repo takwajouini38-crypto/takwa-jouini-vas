@@ -28,12 +28,15 @@ class DbConfigController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'host'         => 'required|string',
-            'port'         => 'required|integer',
-            'service_name' => 'required|string',
+            'host'         => 'required|ip',// Vérifie le format d'adresse IP (v4 ou v6)
+            'port'         => 'required|integer|between:1,65535',
+            'service_name' => 'required|string|regex:/^[a-zA-Z_]+$/', // Uniquement lettres et underscore',
             'username'     => 'required|string',
             'password'     => 'required|string',
-            'is_active'    => 'boolean'
+            'is_active'    => 'boolean'],
+            ['host.ip' => "L'adresse hôte doit être une adresse IP valide (ex: 192.168.1.1).",
+            'service_name.regex' => "Le nom du service ne peut contenir que des lettres (pas de chiffres ou de caractères spéciaux).",
+            'port.between' => "Le port doit être un numéro valide entre 1 et 65535."
         ]);
 
         try {
@@ -64,13 +67,16 @@ class DbConfigController extends Controller
 {
     // Validation des données entrantes
     $request->validate([
-        'host'         => 'required|string',
-        'port'         => 'required|integer',
-        'service_name' => 'required|string',
-        'username'     => 'required|string',
-        'password'     => 'nullable|string', // Optionnel en update
-        'is_active'    => 'boolean'
-    ]);
+      'host'         => 'required|ip',// Vérifie le format d'adresse IP (v4 ou v6)
+            'port'         => 'required|integer|between:1,65535',
+            'service_name' => 'required|string|regex:/^[a-zA-Z_]+$/', // Uniquement lettres et underscore',
+            'username'     => 'required|string',
+            'password'     => 'required|string',
+            'is_active'    => 'boolean'],[
+            'host.ip' => "L'adresse hôte doit être une adresse IP valide.",
+            'service_name.regex' => "Le nom du service ne doit comporter que des lettres.",
+        ]);
+
 
     try {
         $config = DbConfig::findOrFail($id);

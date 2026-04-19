@@ -1,16 +1,72 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Head, useForm, Link } from '@inertiajs/react';
 import GuestLayout from '@/Layouts/GuestLayout';
-import { EnvelopeIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
+import { EnvelopeIcon, ArrowLeftIcon, CheckCircleIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
 
 export default function ForgotPassword({ status }) {
-    const { data, setData, post, processing, errors } = useForm({
+    const [touched, setTouched] = useState(false);
+    const [localError, setLocalError] = useState('');
+
+    const { data, setData, post, processing, errors, clearErrors } = useForm({
         email: '',
     });
 
+    // Validation en temps réel
+    useEffect(() => {
+        if (touched) {
+            const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+            if (!data.email) {
+                setLocalError("L'adresse email est requise.");
+            } else if (!emailRegex.test(data.email)) {
+                setLocalError("Format d'email invalide. Exemple: nom@domaine.com");
+            } else {
+                setLocalError("");
+                if (errors.email) clearErrors('email');
+            }
+        }
+    }, [data.email, touched, errors.email]);
+
+    const handleChange = (e) => {
+        setData('email', e.target.value);
+        if (!touched) setTouched(true);
+    };
+
+    const handleBlur = () => {
+        setTouched(true);
+    };
+
     const submit = (e) => {
         e.preventDefault();
+        
+        // Marquer comme touché
+        setTouched(true);
+        
+        // Validation finale avant soumission
+        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+        if (!data.email || !emailRegex.test(data.email)) {
+            return;
+        }
+        
         post(route('password.email'));
+    };
+
+    const getFieldStatus = () => {
+        if (!touched) return null;
+        if (!data.email) return 'error';
+        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+        if (!emailRegex.test(data.email)) return 'error';
+        return 'success';
+    };
+
+    const getFieldStyles = () => {
+        const status = getFieldStatus();
+        if (status === 'success') {
+            return 'border-green-400 focus:ring-green-500 focus:border-green-500 pr-10';
+        }
+        if (status === 'error') {
+            return 'border-red-400 focus:ring-red-500 focus:border-red-500 bg-red-50 pr-10';
+        }
+        return 'border-gray-200 focus:ring-blue-500 focus:border-blue-500';
     };
 
     return (
@@ -55,23 +111,47 @@ export default function ForgotPassword({ status }) {
 
                     <form onSubmit={submit} className="space-y-6">
                         <div className="space-y-1">
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider ml-1">Email professionnel</label>
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider ml-1 flex items-center justify-between">
+                                <span>Email professionnel</span>
+                                {getFieldStatus() === 'success' && (
+                                    <span className="text-green-500 text-[10px] font-normal">✓ Valide</span>
+                                )}
+                            </label>
                             <div className="relative">
                                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <EnvelopeIcon className="h-5 w-5 text-blue-500/70" />
+                                    <EnvelopeIcon className={`h-5 w-5 transition-colors duration-200 ${
+                                        getFieldStatus() === 'success' ? 'text-green-500' : 
+                                        getFieldStatus() === 'error' ? 'text-red-500' : 'text-blue-500/70'
+                                    }`} />
                                 </div>
                                 <input
                                     type="email"
                                     name="email"
                                     value={data.email}
-                                    onChange={(e) => setData('email', e.target.value)}
+                                    onChange={handleChange}
+                                    onBlur={handleBlur}
                                     placeholder="nom@tunisietelecom.tn"
-                                    className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white"
-                                    required
+                                    className={`block w-full pl-10 pr-3 py-3 border rounded-xl focus:ring-2 transition-all duration-200 bg-white ${getFieldStyles()}`}
                                     autoFocus
                                 />
+                                {getFieldStatus() === 'success' && (
+                                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                        <CheckCircleIcon className="h-5 w-5 text-green-500" />
+                                    </div>
+                                )}
+                                {getFieldStatus() === 'error' && (
+                                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                        <ExclamationCircleIcon className="h-5 w-5 text-red-500" />
+                                    </div>
+                                )}
                             </div>
-                            {errors.email && (
+                            {(localError && touched) && (
+                                <p className="text-red-500 text-xs mt-1 font-medium flex items-center gap-1">
+                                    <ExclamationCircleIcon className="h-3 w-3" />
+                                    {localError}
+                                </p>
+                            )}
+                            {errors.email && !localError && (
                                 <p className="text-red-500 text-xs mt-1 font-medium">{errors.email}</p>
                             )}
                         </div>

@@ -102,96 +102,137 @@ class AnalysteBusinessController extends Controller
         ]);
     }
 
-  public function dashboard(Request $request)
-{
-    // 1. Détermination de la période (Dernier mois disponible dans la base)
-    $range = RaTOccAgg::select(DB::raw("MIN(start_date) as min_d"), DB::raw("MAX(start_date) as max_d"))->first();
-    
-    $maxDateRaw = $range->max_d ?? now()->toDateString();
-    
-    $startDate = $request->start_date ?? Carbon::parse($maxDateRaw)->startOfMonth()->toDateString();
-    $endDate = $request->end_date ?? Carbon::parse($maxDateRaw)->toDateString();
-    
-    $sumRaw = 'SUM(TO_NUMBER(REPLACE(charge_amount, \',\', \'.\')))';
+   public function dashboard(Request $request)
+    {
+        // 1. Détermination de la période
+        $range = RaTOccAgg::select(DB::raw("MIN(start_date) as min_d"), DB::raw("MAX(start_date) as max_d"))->first();
+        
+        $maxDateRaw = $range->max_d ?? now()->toDateString();
+        
+        $startDate = $request->start_date ?? Carbon::parse($maxDateRaw)->startOfMonth()->toDateString();
+        $endDate = $request->end_date ?? Carbon::parse($maxDateRaw)->toDateString();
+        
+        // CORRECTION : Ne pas utiliser d'alias 'r' ici car pas de jointure
+        $sumRaw = 'SUM(TO_NUMBER(REPLACE(charge_amount, \',\', \'.\')))';
 
-    // 2. Calcul du nombre total de fournisseurs
-    $providersCount = \App\Models\ServiceProvider::count();
+        // 2. Calcul du nombre total de fournisseurs
+        $providersCount = ServiceProvider::count();
+        
+        // 3. Dernier fournisseur créé
+        $lastProvider = ServiceProvider::orderBy('created_at', 'desc')->first();
+        
+        // 4. Nombre d'alertes
+        $alertsCount = DB::table('alerts')->count();
+        
+        // 5. Dernières alertes (5 dernières)
+        $latestAlerts = DB::table('alerts')
+            ->orderBy('created_at', 'desc')
+            ->limit(5)
+            ->get();
+        
+        // 6. Alertes par motif
+        try {
+            $alertsByMotif = DB::table('alerts')
+                ->select(DB::raw("CAST(motif AS VARCHAR2(255)) as motif"), DB::raw('count(*) as total'))
+                ->groupBy(DB::raw("CAST(motif AS VARCHAR2(255))"))
+                ->get();
+        } catch (\Exception $e) {
+            $allMotifs = DB::table('alerts')->select('motif')->get();
+            $motifCounts = [];
+            foreach ($allMotifs as $item) {
+                $motif = (string)$item->motif;
+                if (!isset($motifCounts[$motif])) {
+                    $motifCounts[$motif] = 0;
+                }
+                $motifCounts[$motif]++;
+            }
+            
+            $alertsByMotif = [];
+            foreach ($motifCounts as $motif => $count) {
+                $alertsByMotif[] = (object)['motif' => $motif, 'total' => $count];
+            }
+        }
 
-    // 3. Calcul du Revenu Total
-    $totalRevenue = RaTOccAgg::whereRaw("start_date BETWEEN TO_DATE(?, 'YYYY-MM-DD') AND TO_DATE(?, 'YYYY-MM-DD')", [$startDate, $endDate])
-        ->select(DB::raw($sumRaw . ' as total'))
-        ->first()
-        ->total ?? 0;
+        // 7. Calcul du Revenu Total - CORRECTION : Pas d'alias 'r'
+        $totalRevenue = RaTOccAgg::whereRaw("start_date BETWEEN TO_DATE(?, 'YYYY-MM-DD') AND TO_DATE(?, 'YYYY-MM-DD')", [$startDate, $endDate])
+            ->select(DB::raw($sumRaw . ' as total'))
+            ->first()
+            ->total ?? 0;
 
-    // --- ÉTAPES MANQUANTES AJOUTÉES ICI ---
+        // 8. Revenu par fournisseur (top 5) - CORRECTION : Utiliser le bon nom de colonne
+        // D'abord, vérifions si la colonne provider_name existe dans RA_T_OCC_AGG
+        $revenueByProvider = [];
+        
+        try {
+            // Essayer de récupérer directement depuis RA_T_OCC_AGG s'il y a une colonne fournisseur
+            $revenueByProvider = RaTOccAgg::whereRaw("start_date BETWEEN TO_DATE(?, 'YYYY-MM-DD') AND TO_DATE(?, 'YYYY-MM-DD')", [$startDate, $endDate])
+                ->select('PROVIDER', DB::raw($sumRaw . ' as revenue'))
+                ->groupBy('PROVIDER')
+                ->orderBy('revenue', 'desc')
+                ->limit(5)
+                ->get()
+                ->map(function($item) {
+                    return (object)[
+                        'provider_name' => $item->provider,
+                        'revenue' => $item->revenue
+                    ];
+                });
+        } catch (\Exception $e) {
+            // Si pas de colonne PROVIDER, laisser vide
+            $revenueByProvider = [];
+        }
 
-    // 4. Données pour le graphique par fournisseur (indispensable si votre vue l'attend)
-  $revenueByProvider = RaTOccAgg::join('services_sms_plus', 'ra_t_occ_agg.keyword', '=', 'services_sms_plus.keyword')
-    ->join('service_providers', 'services_sms_plus.provider_id', '=', 'service_providers.id')
-    ->select(
-        'service_providers.provider_name as nom_fournisseur', 
-        DB::raw($sumRaw . ' as total')
-    )
-    ->whereRaw("start_date BETWEEN TO_DATE(?, 'YYYY-MM-DD') AND TO_DATE(?, 'YYYY-MM-DD')", [$startDate, $endDate])
-    ->groupBy('service_providers.provider_name')
-    ->orderBy(DB::raw($sumRaw), 'desc')
-    ->get();
-
-    // 5. Données pour le graphique temporel (Revenu par jour) -> RÉSOUT L'ERREUR
-    $revenueByDay = RaTOccAgg::select(
-            DB::raw("TO_CHAR(start_date, 'YYYY-MM-DD') as \"day\""), 
-            DB::raw($sumRaw . ' as "total"')
-        )
-        ->whereRaw("start_date BETWEEN TO_DATE(?, 'YYYY-MM-DD') AND TO_DATE(?, 'YYYY-MM-DD')", [$startDate, $endDate])
-        ->groupBy(DB::raw("TO_CHAR(start_date, 'YYYY-MM-DD')"))
-        ->orderBy(DB::raw("\"day\""), 'asc')
-        ->get();
-
-    // 6. Retour vers Inertia
-    return Inertia::render('AnalysteBiz/BizMainView', [
-        'stats' => [
-            'total_providers' => $providersCount,
-            'period_revenue'  => (float)$totalRevenue,
-        ],
-        'revenueByProvider' => $revenueByProvider, // Ajouté pour éviter une autre erreur potentielle
-        'revenueByDay'      => $revenueByDay,      // Variable maintenant définie
-        'startDate'         => $startDate,
-        'endDate'           => $endDate,
-    ]);
-}   public function searchPage()
+        return Inertia::render('AnalysteBiz/BizMainView', [
+            'stats' => [
+                'total_providers' => $providersCount,
+                'period_revenue'  => (float)$totalRevenue,
+                'alerts_count' => $alertsCount,
+            ],
+            'lastProvider' => $lastProvider,
+            'latestAlerts' => $latestAlerts,
+            'alertsByMotif' => $alertsByMotif,
+            'revenueByProvider' => $revenueByProvider,
+            'dateRange' => [
+                'start' => $startDate,
+                'end' => $endDate,
+            ],
+        ]);
+    }
+      public function searchPage()
     {
         return Inertia::render('AnalysteBiz/MsisdnSearch', ['results' => null]);
     }
 
     public function execSearch(Request $request)
-    {
-        $msisdn = $request->query('msisdn') ?: $request->input('msisdn');
+{
+    $msisdn = $request->query('msisdn') ?: $request->input('msisdn');
 
-        if (!$msisdn) {
-            return Inertia::render('AnalysteBiz/MsisdnSearch', [
-                'results' => null,
-                'filters' => ['msisdn' => '']
-            ]);
-        }
-
-        // Ajout des alias indispensables pour le Frontend
-        $results = RaTOccAgg::where('B_MSISDN', 'LIKE', '%' . trim($msisdn) . '%')
-                    ->select([
-                        'B_MSISDN as msisdn', 
-                        'START_DATE as date', 
-                        'START_HOUR as hour', 
-                        'KEYWORD as keyword', 
-                        'CHARGE_AMOUNT as amount'
-                    ])
-                    ->orderBy('START_DATE', 'desc')
-                    ->limit(500)
-                    ->get();
-
-        return Inertia::render('AnalysteBiz/MsisdnSearch', [
-            'results' => $results, 
-            'filters' => ['msisdn' => $msisdn]
-        ]);
+    if (!$msisdn) {
+        return Inertia::render('AnalysteBiz/MsisdnSearch', ['results' => null]);
     }
+
+    // Votre requête adaptée à Eloquent avec la jointure et le groupement
+    $results = DB::table('ra_t_mmg_cdr_detail as a')
+        ->leftJoin('services_sms_plus as b', 'b.short_code', '=', 'a.b_msisdn')
+        ->join('service_providers as p', 'b.provider_id', '=', 'p.id') // Pour avoir le nom du fournisseur
+        ->select([
+            'p.provider_name',
+            'b.service_name',
+            'b.price',
+            'a.a_msisdn',
+            'a.b_msisdn',
+            DB::raw('COUNT(*) as nb_taxation'),
+            DB::raw('SUM(b.price) as tnd_amount')
+        ])
+        ->where('a.a_msisdn', 'LIKE', '%' . trim($msisdn) . '%')
+        ->groupBy('p.provider_name', 'b.service_name', 'b.price', 'a.a_msisdn', 'a.b_msisdn')
+        ->get();
+
+    return Inertia::render('AnalysteBiz/MsisdnSearch', [
+        'results' => $results,
+        'filters' => ['msisdn' => $msisdn]
+    ]);
+}
 public function topServicesPage(Request $request)
     {
         $range = RaTOccAgg::select(DB::raw("MIN(start_date) as min_d"), DB::raw("MAX(start_date) as max_d"))->first();
@@ -225,81 +266,110 @@ public function topServicesPage(Request $request)
 
 
     public function execBulkSearch(Request $request)
-    {
-        $request->validate([
-            'excel_file' => 'required|mimes:xlsx,xls,csv|max:10240'
-        ]);
+{
+    $request->validate([
+        'excel_file' => 'required|mimes:xlsx,xls,csv|max:10240'
+    ]);
 
-        try {
-            $path = $request->file('excel_file')->getRealPath();
-            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($path);
-            $sheetData = $spreadsheet->getActiveSheet()->toArray(null, true, true, true);
+    try {
+        $path = $request->file('excel_file')->getRealPath();
+        $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($path);
+        $sheetData = $spreadsheet->getActiveSheet()->toArray(null, true, true, true);
 
-            $msisdns = [];
-            foreach ($sheetData as $key => $row) {
-                if ($key == 1) continue; 
-                $val = trim($row['A']);
-                if (!empty($val)) $msisdns[] = $val;
-            }
-
-            if (empty($msisdns)) {
-                return back()->withErrors(['excel_file' => 'Aucun numéro trouvé en colonne A.']);
-            }
-
-            $results = RaTOccAgg::whereIn('B_MSISDN', $msisdns)
-                        ->select([
-                            'B_MSISDN as msisdn', 
-                            'START_DATE as date', 
-                            'KEYWORD as keyword', 
-                            'CHARGE_AMOUNT as amount',
-                            'START_HOUR as hour'
-                        ])
-                        ->orderBy('START_DATE', 'desc')
-                        ->get();
-
-            return $this->generateBulkExcel($results);
-
-        } catch (\Exception $e) {
-            return back()->withErrors(['excel_file' => 'Erreur : ' . $e->getMessage()]);
+        $msisdns = [];
+        foreach ($sheetData as $key => $row) {
+            if ($key == 1) continue; // Sauter l'entête
+            $val = trim($row['A']);
+            if (!empty($val)) $msisdns[] = $val;
         }
+
+        if (empty($msisdns)) {
+            return back()->withErrors(['excel_file' => 'Aucun numéro trouvé en colonne A.']);
+        }
+
+        // Requête identique à la recherche unitaire mais avec whereIn
+        $results = DB::table('ra_t_mmg_cdr_detail as a')
+            ->leftJoin('services_sms_plus as b', 'b.short_code', '=', 'a.b_msisdn')
+            ->leftJoin('service_providers as p', 'b.provider_id', '=', 'p.id')
+            ->select([
+                'p.provider_name',
+                'b.service_name',
+                'b.price',
+                'a.a_msisdn',
+                'a.b_msisdn',
+                DB::raw('COUNT(*) as nb_taxation'),
+                DB::raw('SUM(b.price) as tnd_amount')
+            ])
+            ->whereIn('a.a_msisdn', $msisdns)
+            ->groupBy('p.provider_name', 'b.service_name', 'b.price', 'a.a_msisdn', 'a.b_msisdn')
+            ->get();
+
+        return $this->generateBulkExcel($results);
+
+    } catch (\Exception $e) {
+        return back()->withErrors(['excel_file' => 'Erreur : ' . $e->getMessage()]);
     }
+}
 
     public function generateBulkExcel($results)
-    {
-        $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
+{
+    $spreadsheet = new Spreadsheet();
+    $sheet = $spreadsheet->getActiveSheet();
 
-        $sheet->setCellValue('A1', 'MSISDN');
-        $sheet->setCellValue('B1', 'DATE');
-        $sheet->setCellValue('C1', 'HEURE');
-        $sheet->setCellValue('D1', 'KEYWORD');
-        $sheet->setCellValue('E1', 'MONTANT (TND)');
-        $sheet->getStyle('A1:E1')->getFont()->setBold(true);
+    // Définition des entêtes conformes au tableau unitaire
+    $headers = [
+        'A1' => 'FOURNISSEUR',
+        'B1' => 'SERVICE',
+        'C1' => 'PRIX UNITAIRE (TND)',
+        'D1' => 'A_MSISDN (CLIENT)',
+        'E1' => 'B_MSISDN (SHORTCODE)',
+        'F1' => 'NB TAXATION',
+        'G1' => 'TOTAL REVENU (TND)'
+    ];
 
-        $rowIdx = 2;
-        foreach ($results as $r) {
-            $sheet->setCellValueExplicit('A'.$rowIdx, $r->msisdn, DataType::TYPE_STRING);
-            $sheet->setCellValue('B'.$rowIdx, $r->date);
-            $sheet->setCellValue('C'.$rowIdx, $r->hour);
-            $sheet->setCellValue('D'.$rowIdx, $r->keyword);
-            $sheet->setCellValue('E'.$rowIdx, $r->amount);
-            $rowIdx++;
-        }
-
-        if (ob_get_length()) ob_end_clean();
-        $writer = new Xlsx($spreadsheet);
-        $fileName = 'Resultat_Batch_TT_' . now()->format('Ymd_His') . '.xlsx';
-
-        return response()->streamDownload(function() use ($writer) {
-            $writer->save('php://output');
-        }, $fileName, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'Cache-Control' => 'max-age=0',
-        ]);
+    foreach ($headers as $cell => $text) {
+        $sheet->setCellValue($cell, $text);
     }
-    // 1. Vue par Fournisseur
-// Dans AnalysteBusinessController.php
+    
+    // Style pour l'entête
+    $sheet->getStyle('A1:G1')->getFont()->setBold(true);
+    $sheet->getStyle('A1:G1')->getFill()
+          ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+          ->getStartColor()->setRGB('F4F7FE');
 
+    $rowIdx = 2;
+    foreach ($results as $r) {
+        $sheet->setCellValue('A' . $rowIdx, $r->provider_name ?? 'Inconnu');
+        $sheet->setCellValue('B' . $rowIdx, $r->service_name ?? 'N/A');
+        $sheet->setCellValue('C' . $rowIdx, number_format((float)$r->price, 3, '.', ''));
+        
+        // On force le format texte pour les MSISDN pour éviter les notations scientifiques (ex: 2.16E+11)
+        $sheet->setCellValueExplicit('D' . $rowIdx, $r->a_msisdn, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+        $sheet->setCellValueExplicit('E' . $rowIdx, $r->b_msisdn, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+        
+        $sheet->setCellValue('F' . $rowIdx, $r->nb_taxation);
+        $sheet->setCellValue('G' . $rowIdx, number_format((float)$r->tnd_amount, 3, '.', ''));
+        
+        $rowIdx++;
+    }
+
+    // Ajustement automatique de la largeur des colonnes
+    foreach (range('A', 'G') as $col) {
+        $sheet->getColumnDimension($col)->setAutoSize(true);
+    }
+
+    if (ob_get_length()) ob_end_clean();
+    
+    $writer = new Xlsx($spreadsheet);
+    $fileName = 'Resultat_Batch_Investigation_TT_' . now()->format('Ymd_His') . '.xlsx';
+
+    return response()->streamDownload(function() use ($writer) {
+        $writer->save('php://output');
+    }, $fileName, [
+        'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Cache-Control' => 'max-age=0',
+    ]);
+}
 public function revenueByProviderPage(Request $request)
 {
     // 1. Dates par défaut (dernier mois dispo)

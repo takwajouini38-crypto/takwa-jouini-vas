@@ -60,4 +60,26 @@ class ProfileController extends Controller
 
         return Redirect::to('/');
     }
+public function updatePhoto(Request $request)
+{
+    $request->validate([
+        'photo' => 'required|image|mimes:jpeg,png,jpg|max:2048',
+    ]);
+
+    $user = auth()->user(); // On récupère l'utilisateur connecté
+
+    if ($request->hasFile('photo')) {
+        if ($user->photo) {
+            Storage::disk('public')->delete($user->photo);
+        }
+        $path = $request->file('photo')->store('profiles', 'public');
+        dd($path);
+        $user->update(['photo' => $path]);
+    }
+
+    return back()->with('status', 'photo-updated');
+}
+
+
+
 }

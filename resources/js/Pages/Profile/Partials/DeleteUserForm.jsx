@@ -4,7 +4,7 @@ import InputLabel from '@/Components/InputLabel';
 import Modal from '@/Components/Modal';
 import SecondaryButton from '@/Components/SecondaryButton';
 import TextInput from '@/Components/TextInput';
-import { useForm } from '@inertiajs/react';
+import { router, useForm } from '@inertiajs/react';
 import { useRef, useState } from 'react';
 
 export default function DeleteUserForm({ className = '' }) {
@@ -27,16 +27,20 @@ export default function DeleteUserForm({ className = '' }) {
         setConfirmingUserDeletion(true);
     };
 
-    const deleteUser = (e) => {
-        e.preventDefault();
+   const deleteUser = (e) => {
+    e.preventDefault();
 
-        destroy(route('profile.destroy'), {
-            preserveScroll: true,
-            onSuccess: () => closeModal(),
-            onError: () => passwordInput.current.focus(),
-            onFinish: () => reset(),
-        });
-    };
+    // On utilise router.post avec le spoofing _method: 'delete'
+    router.post(route('profile.destroy'), {
+        _method: 'delete', // Spoofing : Laravel traitera ceci comme une suppression
+        password: data.password, // On envoie le mot de passe pour la confirmation
+    }, {
+        preserveScroll: true,
+        onSuccess: () => closeModal(),
+        onError: () => passwordInput.current.focus(),
+        onFinish: () => reset(),
+    });
+};
 
     const closeModal = () => {
         setConfirmingUserDeletion(false);

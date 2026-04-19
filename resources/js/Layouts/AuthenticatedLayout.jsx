@@ -190,9 +190,23 @@ export default function AuthenticatedLayout({ children, title }) {
                     <Dropdown>
                         <Dropdown.Trigger>
                             <button className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-gray-100 transition">
-                                <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xs font-bold ring-2 ring-indigo-100">
-                                    {user.name.charAt(0)}
-                                </div>
+                                <div className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden ring-2 ring-indigo-100 bg-gray-200">
+    {user.photo ? (
+        <img 
+            src={`/storage/${user.photo}`} 
+            alt="Avatar" 
+            className="w-full h-full object-cover"
+            onError={(e) => {
+                e.target.onerror = null; 
+                e.target.src = `https://ui-avatars.com/api/?name=${user.name}&background=6366f1&color=fff`;
+            }}
+        />
+    ) : (
+        <span className="text-white text-xs font-bold bg-indigo-500 w-full h-full flex items-center justify-center">
+            {user.name.charAt(0).toUpperCase()}
+        </span>
+    )}
+</div>
                                 <div className="text-left hidden sm:block">
                                     <p className="text-xs text-gray-400 leading-none mb-1 uppercase font-bold">{user.role}</p>
                                     <p className="text-sm text-gray-700 font-medium leading-none">{user.name}</p>

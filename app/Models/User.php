@@ -18,7 +18,8 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
-        'role', // utile si tu gères admin / user / technicien
+        'role', 
+        'photo'// utile si tu gères admin / user / technicien
     ];
 
     /**

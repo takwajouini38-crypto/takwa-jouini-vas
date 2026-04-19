@@ -7,67 +7,80 @@ use App\Models\ServiceSmsPlus;
 use App\Models\RaTMmgAgg;
 use App\Models\Alert;
 use Carbon\Carbon;
+// 1. Importation de la façade Notification et de votre classe
 use Illuminate\Support\Facades\Notification;
 use App\Notifications\AlertDetectionNotification;
 
 class CheckTrafficAlerts extends Command
 {
-    // On change la signature pour qu'elle soit plus simple à appeler
     protected $signature = 'traffic:check-alerts';
-    protected $description = 'Détecte les majorations de revenus anormales (>20%) sur les services SMS+';
+    protected $description = 'Détecte une hausse sur les dernières données disponibles';
 
     public function handle()
     {
-        $today = Carbon::today()->toDateString();
-        $yesterday = Carbon::yesterday()->toDateString();
+        $this->info("Démarrage de l'analyse sur les données HISTORIQUES...");
 
-        $this->info("Démarrage de l'analyse des alertes pour le : $today");
+        $lastDate = \App\Models\RaTMmgAgg::max('start_date');
 
-        // 1. On récupère tous les services SMS+ actifs
-        $services = ServiceSmsPlus::active()->get();
+        if (!$lastDate) {
+            $this->error("Aucune donnée trouvée dans la table RA_T_MMG_AGG.");
+            return;
+        }
+
+        $referenceDate = \Carbon\Carbon::parse($lastDate);
+        $targetDate = $referenceDate->toDateString(); 
+        $sevenDaysAgo = $referenceDate->copy()->subDays(7)->toDateString();
+        $yesterday = $referenceDate->copy()->subDay()->toDateString();
+
+        $this->info("Date d'analyse : " . $targetDate);
+
+        // Optionnel : Utiliser un groupBy pour éviter les doublons si nécessaire
+        $services = \App\Models\ServiceSmsPlus::all();
 
         foreach ($services as $service) {
-            // 2. Récupérer le volume MMG (Réseau) d'aujourd'hui
-            $currentVolume = RaTMmgAgg::where('service_type', $service->keyword)
-                ->whereDate('start_date', $today)
-                ->sum('cdr_count');
+            $keyword = trim($service->keyword);
 
-            // 3. Récupérer le volume MMG d'hier (J-1)
-            $previousVolume = RaTMmgAgg::where('service_type', $service->keyword)
-                ->whereDate('start_date', $yesterday)
-                ->sum('cdr_count');
+            $currentVolume = \App\Models\RaTMmgAgg::whereRaw("TRIM(service_type) = ?", [$keyword])
+                ->whereRaw("TRUNC(start_date) = TO_DATE(?, 'YYYY-MM-DD')", [$targetDate])
+                ->sum('cdr_count') ?: 0;
 
-            // 4. Calculer l'augmentation si on a des données pour hier
-            if ($previousVolume > 0) {
-                $increase = (($currentVolume - $previousVolume) / $previousVolume) * 100;
+            $avgVolume = \App\Models\RaTMmgAgg::whereRaw("TRIM(service_type) = ?", [$keyword])
+                ->whereRaw("TRUNC(start_date) BETWEEN TO_DATE(?, 'YYYY-MM-DD') AND TO_DATE(?, 'YYYY-MM-DD')", [
+                    $sevenDaysAgo, 
+                    $yesterday
+                ])
+                ->avg('cdr_count') ?: 0;
 
-                // Si l'augmentation dépasse le seuil de 20%
+            $this->line("Service: <info>{$keyword}</info> | Vol: <comment>{$currentVolume}</comment> | Moy: <comment>" . round($avgVolume, 2) . "</comment>");
+
+            if ($avgVolume > 0) {
+                $increase = (($currentVolume - $avgVolume) / $avgVolume) * 100;
+
                 if ($increase >= 20) {
+                    $this->warn("   => !!! ALERTE : +{$increase}% détectée !!!");
                     
-                    // 5. Créer l'alerte dans la base pour l'historique
+                    // 2. Création de l'alerte
                     $alert = Alert::create([
-                        'service_name'   => $service->nom_service,
-                        'provider'       => $service->nom_fournisseur,
-                        'avg_volume'     => $previousVolume,
+                        'service_name'   => $service->service_name,
+                        'provider'       => $service->provider_id,
+                        'avg_volume'     => round($avgVolume, 0),
                         'current_volume' => $currentVolume,
                         'increase_pct'   => round($increase, 2),
                         'detected_at'    => now(),
                     ]);
 
-                    $this->warn("Alerte détectée : {$service->nom_service} (+{$alert->increase_pct}%)");
-
-                    // 6. Notification par email à l'analyste Business
-                    // Note : Assure-toi d'avoir créé la notification 'AlertDetectionNotification'
+                    // 3. Envoi de la notification par mail
                     try {
-                        Notification::route('mail', 'analyste-business@tunisietelecom.tn')
+                        // Remplacez par l'email réel de destination
+                        Notification::route('mail', 'takwajouini38@gmail.com')
                             ->notify(new AlertDetectionNotification($alert));
+                            
+                        $this->info("      -> Notification mail envoyée.");
                     } catch (\Exception $e) {
-                        $this->error("Erreur lors de l'envoi de l'email : " . $e->getMessage());
+                        $this->error("      -> Erreur d'envoi mail : " . $e->getMessage());
                     }
                 }
             }
         }
-
-        $this->info("Analyse terminée.");
     }
 }

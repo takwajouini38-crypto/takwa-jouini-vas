@@ -20,10 +20,14 @@ class FtpSettingController extends Controller
     {
         $request->validate([
             'name' => 'required',
-            'host' => 'required',
-            'port' => 'required',
-            'username' => 'required',
-            'password' => 'required',
+            'host' => 'required|ip',
+            'port' => 'required|integer|between:1,65535',
+            'username' => 'required|string',
+            'password' =>  'required|string',], 
+            ['host.ip' => "L'adresse hôte doit être une adresse IP valide (ex: 192.168.1.1).",
+            'service_name.regex' => "Le nom du service ne peut contenir que des lettres (pas de chiffres ou de caractères spéciaux).",
+            'port.between' => "Le port doit être un numéro valide entre 1 et 65535."
+        
         ]);
 
         FtpSetting::create($request->only([
