@@ -85,6 +85,8 @@ export default function AuthenticatedLayout({ children, title }) {
             roles: ['analyst_biz'], 
             icon:  ChartBarIcon 
         },
+        // AJOUT DE LA RUBRIQUE PRÉDICTION
+       
     ]
 },
         {

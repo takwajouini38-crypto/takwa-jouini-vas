@@ -156,25 +156,7 @@ export default function BizMainView({ auth, stats, lastProvider, latestAlerts = 
                             </div>
                         </div>
 
-                        {/* Carte : Croissance */}
-                        <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden border-l-4 border-l-purple-500">
-                            <div className="p-5">
-                                <div className="flex items-center justify-between mb-3">
-                                    <div className="p-3 bg-purple-50 rounded-xl">
-                                        <ArrowTrendingUpIcon className="h-6 w-6 text-purple-600" />
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-2xl font-bold text-green-600">+{growthRate}%</p>
-                                        <p className="text-xs text-gray-500">Croissance</p>
-                                    </div>
-                                </div>
-                                <div>
-                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Taux de croissance</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
+                       </div>
                     {/* --- SECTION DERNIÈRES ACTIVITÉS --- */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         
@@ -198,7 +180,7 @@ export default function BizMainView({ auth, stats, lastProvider, latestAlerts = 
                                             {lastProvider.name?.charAt(0).toUpperCase() || 'P'}
                                         </div>
                                         <div className="flex-1">
-                                            <p className="font-semibold text-gray-800 text-lg">{lastProvider.name || 'Sans nom'}</p>
+                                            <p className="font-semibold text-gray-800 text-lg">{lastProvider.provider_name || 'Sans nom'}</p>
                                             <div className="flex items-center gap-2 mt-1">
                                                 <ClockIcon className="w-4 h-4 text-gray-400" />
                                                 <p className="text-xs text-gray-500">
@@ -216,124 +198,10 @@ export default function BizMainView({ auth, stats, lastProvider, latestAlerts = 
                             )}
                         </div>
 
-                        {/* Top 5 Fournisseurs par revenu */}
-                        <div className="bg-white rounded-xl shadow-md overflow-hidden">
-                            <div className="p-6 border-b border-gray-100">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-blue-50 rounded-xl">
-                                        <ChartBarIcon className="w-6 h-6 text-blue-600" />
-                                    </div>
-                                    <div>
-                                        <h3 className="font-bold text-gray-800">Top fournisseurs</h3>
-                                        <p className="text-xs text-gray-500">Par chiffre d'affaires</p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="divide-y divide-gray-100">
-                                {revenueByProvider.length > 0 ? (
-                                    revenueByProvider.map((provider, index) => (
-                                        <div key={index} className="p-4 hover:bg-gray-50 transition-colors">
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                                                        index === 0 ? 'bg-yellow-100 text-yellow-700' :
-                                                        index === 1 ? 'bg-gray-100 text-gray-700' :
-                                                        index === 2 ? 'bg-orange-100 text-orange-700' :
-                                                        'bg-blue-100 text-blue-700'
-                                                    }`}>
-                                                        {index + 1}
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-medium text-gray-800">{provider.provider_name}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="font-bold text-gray-900">{formatCurrency(provider.revenue)}</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <div className="p-8 text-center text-gray-500">
-                                        Aucune donnée
-                                    </div>
-                                )}
-                            </div>
                         </div>
-                    </div>
 
-                    {/* --- SECTION ALERTES (avec les champs existants) --- */}
-                    <div className="bg-white rounded-xl shadow-md overflow-hidden">
-                        <div className="p-6 border-b border-gray-100">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-amber-50 rounded-xl">
-                                        <BellAlertIcon className="w-6 h-6 text-amber-600" />
-                                    </div>
-                                    <div>
-                                        <h3 className="font-bold text-gray-800">Alertes récentes</h3>
-                                        <p className="text-xs text-gray-500">Détection d'anomalies</p>
-                                    </div>
-                                </div>
-                                <div className="flex gap-2">
-                                    {alertsByMotif.map((item, idx) => (
-                                        <div key={idx} className="text-center px-3 py-1 bg-gray-100 rounded-lg">
-                                            <p className="text-xs font-bold text-gray-600">{item.motif || 'Sans motif'}</p>
-                                            <p className="text-lg font-bold text-amber-600">{item.total}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                        <div className="divide-y divide-gray-100">
-                            {latestAlerts.length > 0 ? (
-                                latestAlerts.map((alert, index) => (
-                                    <div key={index} className="p-4 hover:bg-gray-50 transition-colors">
-                                        <div className="flex items-start justify-between">
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                                    <p className="font-semibold text-gray-800 text-sm">{alert.service_name || 'Service inconnu'}</p>
-                                                    {getMotifBadge(alert.motif)}
-                                                </div>
-                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                                                    <div>
-                                                        <span className="text-gray-500">Fournisseur:</span>
-                                                        <p className="font-medium text-gray-700">{alert.provider || '-'}</p>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-gray-500">Volume moyen:</span>
-                                                        <p className="font-medium text-gray-700">{alert.avg_volume?.toLocaleString() || '-'}</p>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-gray-500">Volume actuel:</span>
-                                                        <p className="font-medium text-gray-700">{alert.current_volume?.toLocaleString() || '-'}</p>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-gray-500">Augmentation:</span>
-                                                        <p className={`font-medium ${alert.increase_pct > 50 ? 'text-red-600' : 'text-orange-600'}`}>
-                                                            {alert.increase_pct ? `+${alert.increase_pct}%` : '-'}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
-                                                    <ClockIcon className="w-3 h-3" />
-                                                    Détecté le {formatDate(alert.detected_at || alert.created_at)}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))
-                            ) : (
-                                <div className="p-12 text-center">
-                                    <div className="w-16 h-16 mx-auto mb-3 bg-green-50 rounded-full flex items-center justify-center">
-                                        <CheckCircleIcon className="w-8 h-8 text-green-500" />
-                                    </div>
-                                    <p className="text-gray-500 font-medium">Aucune alerte</p>
-                                    <p className="text-xs text-gray-400 mt-1">Tous les services fonctionnent normalement</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                   
+                       
                 </div>
             </div>
         </AuthenticatedLayout>

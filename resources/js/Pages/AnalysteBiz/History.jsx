@@ -4,16 +4,18 @@ import { Head, router } from '@inertiajs/react';
 
 export default function AlertHistory({ auth, alerts }) {
 
-    const handleSaveMotif = (id, motifValue) => {
-        router.patch(route('alerts.update', id), {
-            motif: motifValue 
-        }, {
-            preserveScroll: true,
-            onSuccess: () => {
-                // Succès de la mise à jour
-            }
-        });
-    };
+   const handleSaveMotif = (id, motifValue) => {
+    // On utilise POST mais on ajoute _method: 'PATCH' pour le spoofing Laravel
+    router.post(route('alerts.update', id), {
+        _method: 'PATCH', 
+        motif: motifValue 
+    }, {
+        preserveScroll: true,
+        onSuccess: () => {
+            // Optionnel : notification de succès
+        }
+    });
+};
 
     return (
         <AuthenticatedLayout user={auth.user}>

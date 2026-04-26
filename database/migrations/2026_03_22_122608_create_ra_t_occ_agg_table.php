@@ -22,7 +22,13 @@ return new class extends Migration
             $table->string('keyword', 100)->nullable();
 
             $table->integer('cdr_count')->nullable(); // NUMBER
-            $table->decimal('charge_amount', 20, 5)->nullable(); // NUMBER sans précision → safe decimal
+            $table->decimal('charge_amount', 20, 5)->nullable(); // NUMBER sans précision → safe 
+            // Déclaration de la clé étrangère
+        $table->foreign('keyword')
+              ->references('keyword')
+              ->on('services_sms_plus')
+              ->onUpdate('cascade')
+              ->onDelete('set null');
 
         });
     }

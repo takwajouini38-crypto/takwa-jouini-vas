@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
+use App\Jobs\CheckTrafficAlertsJob;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -18,6 +19,7 @@ Schedule::command('cdr:run-etl')
     ->everyFiveMinutes() // On passe à 5 minutes pour laisser la chaîne finir
     ->onOneServer() // Utile si tu as plusieurs instances
     ->withoutOverlapping(10); // Le 10 signifie que le verrou expire après 10 min quoi qu'il arrive
+    Schedule::job(new CheckTrafficAlertsJob)->everyMinute();
 
 // En production réelle :
 // Schedule::command('cdr:run-etl')->dailyAt('02:00')->withoutOverlapping();

@@ -33,23 +33,5 @@ class RaTMmgAgg extends Model
         return $this->belongsTo(ServiceSmsPlus::class, 'service_type', 'keyword');
     }
 
-    public function scopeByMsisdn($query, string $msisdn)
-    {
-        return $query->where('b_msisdn', $msisdn);
-    }
-
-    public function scopeBetweenDates($query, string $startDate, string $endDate)
-    {
-        return $query->whereBetween('start_date', [$startDate, $endDate]);
-    }
-
-    public function scopeByMsisdnList($query, array $msisdns)
-    {
-        return $query->whereIn('b_msisdn', $msisdns);
-    }
-
-    public function scopeByServiceKeyword($query, string $keyword)
-    {
-        return $query->where('service_type', $keyword);
-    }
+    
 }

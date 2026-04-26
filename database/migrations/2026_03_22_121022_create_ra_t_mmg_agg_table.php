@@ -23,6 +23,12 @@ return new class extends Migration
             $table->string('service_type', 50)->nullable();
 
             $table->integer('cdr_count')->nullable(); // NUMBER
+            // 2. On déclare la contrainte de clé étrangère
+        $table->foreign('service_type')
+              ->references('keyword')    // La colonne cible
+              ->on('services_sms_plus') // La table cible
+              ->onUpdate('cascade')      // Si le keyword change, il se met à jour ici
+              ->onDelete('set null');    // Si le service est supprimé, on garde le trafic à NULL
 
         });
     }

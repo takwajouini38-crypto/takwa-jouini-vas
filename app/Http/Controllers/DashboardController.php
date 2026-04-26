@@ -30,7 +30,7 @@ class DashboardController extends Controller
     $latestFtpConfigs = FtpSetting::orderBy('created_at', 'desc')->limit(5)->get(); // Changé de FtpConfig à FtpSetting
     
     // Dernière activité globale
-   /* $lastUserCreated = User::on('oracle')->orderBy('created_at', 'desc')->first();
+    $lastUserCreated = User::on('oracle')->orderBy('created_at', 'desc')->first();
     $lastDbConfig = DbConfig::orderBy('created_at', 'desc')->first();
     $lastFtpConfig = FtpSetting::orderBy('created_at', 'desc')->first(); // Changé de FtpConfig à FtpSetting*/
     

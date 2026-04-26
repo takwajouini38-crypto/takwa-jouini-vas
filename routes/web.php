@@ -18,6 +18,7 @@ use App\Http\Controllers\ServiceProviderController;
 
 
 
+
 Route::resource('services', ServiceSmsPlusController::class)->except(['show']);
 Route::resource('providers', ServiceProviderController::class);
 // Page d'accueil (publique)
@@ -36,8 +37,8 @@ Route::middleware(['auth', 'checkrole:analyst_biz'])->prefix('monitoring')->grou
     Route::get('/search', [AnalysteBusinessController::class, 'searchPage'])->name('analyste.search');
     Route::post('/bulk-search', [AnalysteBusinessController::class, 'execBulkSearch'])->name('analyste.bulk.search');
     Route::get('/api/search', [AnalysteBusinessController::class, 'execSearch'])->name('analyste.api.search');
-    Route::get('/export', [AnalysteBusinessController::class, 'exportExcel'])->name('analyste.export');
-});
+    Route::get('/export', [AnalysteBusinessController::class, 'exportExcel'])->name('analyste.export');});
+
 
 // Route spécifique au rôle biz
 Route::middleware(['auth', 'verified', 'checkrole:analyst_biz'])->group(function () {

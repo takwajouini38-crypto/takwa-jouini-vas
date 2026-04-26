@@ -119,16 +119,15 @@ export default function Login() {
                             className="w-48 h-auto transition-transform hover:scale-105 duration-300"
                         />
                     </div>
-
-                    <div className="text-center">
-                        <h2 className="text-3xl font-extrabold bg-gradient-to-r from-blue-700 to-indigo-800 bg-clip-text text-transparent">
-                            Bienvenue
-                        </h2>
-                        <p className="mt-2 text-sm text-gray-600 font-medium">
-                            Connectez-vous à votre espace professionnel
-                        </p>
-                    </div>
-
+<div className="text-center">
+    <h2 className="text-4xl font-extrabold text-slate-800 tracking-tight">
+       <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">   Bienvenue sur TT Smart</span>
+    </h2>
+    <p className="mt-2 text-base font-light text-slate-500">
+         <span className="font-semibold text-slate-700">Monitoring  — Analyse & Performance </span> 
+    </p>
+    
+</div>
                     {/* Formulaire */}
                     <form onSubmit={submit} className="space-y-6">
                         <div className="space-y-1">

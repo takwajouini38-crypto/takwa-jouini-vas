@@ -7,7 +7,8 @@ import {
     CloudArrowUpIcon,
     RocketLaunchIcon,
     MagnifyingGlassIcon,
-    TableCellsIcon
+    TableCellsIcon,
+    XCircleIcon // Import de l'icône pour l'annulation
 } from '@heroicons/react/24/outline';
 
 export default function MsisdnSearch({ auth, results, filters }) {
@@ -18,7 +19,7 @@ export default function MsisdnSearch({ auth, results, filters }) {
     
     const [touched, setTouched] = useState(false);
     const [localError, setLocalError] = useState('');
-
+    
     // Validation du MSISDN (Tunisie 216 + 8 chiffres)
     useEffect(() => {
         if (touched) {
@@ -60,6 +61,14 @@ export default function MsisdnSearch({ auth, results, filters }) {
                 onFinish: () => setIsLoading(false),
             }
         );
+    };
+
+    // Fonction pour annuler la sélection du fichier
+    const handleCancelBatch = () => {
+        setFile(null);
+        // Réinitialise l'input file si nécessaire
+        const fileInput = document.querySelector('input[name="excel_file"]');
+        if (fileInput) fileInput.value = "";
     };
 
     const isValid = msisdn && msisdn.startsWith('216') && /^\d{11}$/.test(msisdn);
@@ -135,6 +144,7 @@ export default function MsisdnSearch({ auth, results, filters }) {
                                                 <>
                                                     <CheckCircleIcon className="w-10 h-10 text-green-600 mb-2" />
                                                     <p className="text-sm font-bold text-green-700">{file.name}</p>
+                                                    <p className="text-[10px] text-green-600 uppercase mt-1">Fichier prêt pour analyse</p>
                                                 </>
                                             ) : (
                                                 <>
@@ -146,9 +156,27 @@ export default function MsisdnSearch({ auth, results, filters }) {
                                         <input type="file" name="excel_file" className="hidden" accept=".xlsx, .xls, .csv" onChange={(e) => setFile(e.target.files[0])} required />
                                     </label>
                                 </div>
-                                <button type="submit" disabled={!file} className={`w-full h-12 rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-3 ${!file ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-[#6A67FC] to-[#534FDB] text-white'}`}>
-                                    <RocketLaunchIcon className="w-5 h-5" /> Lancer le traitement batch
-                                </button>
+
+                                <div className="flex gap-3">
+                                    {/* Bouton Annuler (visible seulement si un fichier est sélectionné) */}
+                                    {file && (
+                                        <button 
+                                            type="button" 
+                                            onClick={handleCancelBatch}
+                                            className="flex-1 h-12 rounded-xl font-black text-xs uppercase tracking-widest transition-all border-2 border-slate-200 text-slate-500 hover:bg-slate-50 flex items-center justify-center gap-2"
+                                        >
+                                            <XCircleIcon className="w-5 h-5" /> Annuler
+                                        </button>
+                                    )}
+                                    
+                                    <button 
+                                        type="submit" 
+                                        disabled={!file} 
+                                        className={`flex-[2] h-12 rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-3 ${!file ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-[#6A67FC] to-[#534FDB] text-white'}`}
+                                    >
+                                        <RocketLaunchIcon className="w-5 h-5" /> Lancer le traitement batch
+                                    </button>
+                                </div>
                             </form>
                         )}
                     </div>
@@ -167,6 +195,8 @@ export default function MsisdnSearch({ auth, results, filters }) {
                                         <tr className="bg-[#F8F9FF] text-[#6A67FC] text-[11px] font-black uppercase tracking-wider">
                                             <th className="px-6 py-4 border-b">Fournisseur</th>
                                             <th className="px-6 py-4 border-b">Service</th>
+                                            <th className="px-6 py-4 border-b">Date</th>
+                                            <th className="px-6 py-4 border-b text-right">Prix (TND)</th> 
                                             <th className="px-6 py-4 border-b text-center">Nb Taxation</th>
                                             <th className="px-6 py-4 border-b text-right">Montant Taxé (TND)</th>
                                         </tr>
@@ -184,6 +214,16 @@ export default function MsisdnSearch({ auth, results, filters }) {
                                                             <span className="text-[10px] text-slate-400 font-mono">Shortcode: {res.b_msisdn}</span>
                                                         </div>
                                                     </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className="text-sm font-medium text-slate-600">
+                                                            {res.start_date_formatted || 'N/A'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        <span className="text-sm font-semibold text-slate-600">
+                                                            {new Intl.NumberFormat('fr-TN', { minimumFractionDigits: 3 }).format(res.price)}
+                                                        </span>
+                                                    </td>
                                                     <td className="px-6 py-4 text-center">
                                                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
                                                             {res.nb_taxation}
@@ -198,7 +238,7 @@ export default function MsisdnSearch({ auth, results, filters }) {
                                             ))
                                         ) : (
                                             <tr>
-                                                <td colSpan="4" className="px-6 py-10 text-center text-slate-400 italic">
+                                                <td colSpan="6" className="px-6 py-10 text-center text-slate-400 italic">
                                                     Aucun enregistrement trouvé pour ce MSISDN.
                                                 </td>
                                             </tr>
@@ -208,6 +248,8 @@ export default function MsisdnSearch({ auth, results, filters }) {
                                         <tfoot className="bg-slate-50">
                                             <tr className="font-black text-slate-700">
                                                 <td colSpan="2" className="px-6 py-4 text-right text-xs uppercase">Total Général</td>
+                                                <td className="px-6 py-4"></td>
+                                                <td className="px-6 py-4"></td>
                                                 <td className="px-6 py-4 text-center text-blue-900">
                                                     {results.reduce((acc, curr) => acc + parseInt(curr.nb_taxation), 0)}
                                                 </td>

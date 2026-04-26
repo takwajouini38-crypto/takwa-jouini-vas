@@ -35,40 +35,7 @@ class RaTOccAgg extends Model
         return $this->belongsTo(ServiceSmsPlus::class, 'keyword', 'keyword');
     }
 
-    // Accessor nom service
-    public function getServiceNomAttribute(): ?string
-    {
-        return $this->relationLoaded('serviceSms') && $this->serviceSms
-            ? $this->serviceSms->nom_service
-            : null;
-    }
+   
 
-    // Accessor prix service
-    public function getServicePrixAttribute(): ?float
-    {
-        return $this->relationLoaded('serviceSms') && $this->serviceSms
-            ? $this->serviceSms->prix
-            : null;
-    }
-
-    // Scopes
-    public function scopeByKeyword($query, string $keyword)
-    {
-        return $query->where('keyword', $keyword);
-    }
-
-    public function scopeBetweenDates($query, string $startDate, string $endDate)
-    {
-        return $query->whereBetween('start_date', [$startDate, $endDate]);
-    }
-
-    public function scopeByMsisdnList($query, array $msisdns)
-    {
-        return $query->whereIn('b_msisdn', $msisdns);
-    }
-
-    public function scopeByMsisdn($query, string $msisdn)
-    {
-        return $query->where('b_msisdn', $msisdn);
-    }
+    
 }
