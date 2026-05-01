@@ -10,7 +10,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use App\Models\JobTask;
 use Illuminate\Support\Facades\Log;
-use App\Services\OracleConnectorService; // ✅ Import du service
+use App\Services\OracleConnectorService;
 
 class AggregateOccCdr implements ShouldQueue
 {
@@ -21,6 +21,7 @@ class AggregateOccCdr implements ShouldQueue
     public function __construct($jobId)
     {
         $this->jobId = $jobId;
+        $this->onQueue('etl');
     }
 
     /**
@@ -43,52 +44,69 @@ class AggregateOccCdr implements ShouldQueue
             // ✅ 1. Configuration de la connexion dynamique
             $oracleService->configureConnection();
 
-            // ✅ Forcer le statut à 'running'
+            // ✅ Passage en 'running'
             $jobModel->update(['status' => 'running']);
 
-            // 🔴 CHECK AVANT TRUNCATE
-            $jobModel->refresh();
-            if ($jobModel->status !== 'running') {
-                Log::warning("Job {$this->jobId} stoppé avant TRUNCATE");
+            // ✅ 2. Vérifier s'il y a des données à traiter dans DETAIL
+            $hasData = DB::connection('oracle_dynamic')->table('RA_T_OCC_CDR_DETAIL')->exists();
+
+            if (!$hasData) {
+                Log::info("Aucune donnée dans DETAIL OCC. On garde les données actuelles de AGG.");
+                $jobModel->update(['status' => 'success']);
                 return;
             }
 
-            // ✅ TRUNCATE via connexion dynamique
-            DB::connection('oracle_dynamic')->statement("TRUNCATE TABLE RA_T_OCC_AGG");
-            Log::info("Table RA_T_OCC_AGG vidée.");
-
-            // 🔴 CHECK AVANT INSERT
+            // 🔴 CHECK AVANT MERGE
             $jobModel->refresh();
             if ($jobModel->status !== 'running') {
-                Log::warning("Job {$this->jobId} stoppé avant INSERT");
+                Log::warning("Job {$this->jobId} stoppé avant MERGE");
                 return;
             }
 
-            // ✅ INSERT (BI Aggregation) via connexion dynamique
+            // ✅ 3. Lancement du MERGE pour OCC (Gère CDR_COUNT et CHARGE_AMOUNT)
             DB::connection('oracle_dynamic')->statement("
-                INSERT INTO RA_T_OCC_AGG
-                SELECT
-                    B_MSISDN,
-                    START_DATE,
-                    START_HOUR,
-                    CALL_TYPE,
-                    EVENT_TYPE,
-                    SUBSCRIBER_TYPE,
-                    KEYWORD,
-                    COUNT(*) AS CDR_COUNT,
-                    SUM(CHARGE_AMOUNT) AS CHARGE_AMOUNT
-                FROM RA_T_OCC_CDR_DETAIL
-                GROUP BY
-                    B_MSISDN,
-                    START_DATE,
-                    START_HOUR,
-                    CALL_TYPE,
-                    EVENT_TYPE,
-                    SUBSCRIBER_TYPE,
-                    KEYWORD
+                MERGE INTO RA_T_OCC_AGG target
+                USING (
+                    SELECT
+                        B_MSISDN,
+                        START_DATE,
+                        START_HOUR,
+                        CALL_TYPE,
+                        EVENT_TYPE,
+                        SUBSCRIBER_TYPE,
+                        KEYWORD,
+                        COUNT(*) AS CDR_COUNT,
+                        SUM(CHARGE_AMOUNT) AS CHARGE_AMOUNT
+                    FROM RA_T_OCC_CDR_DETAIL
+                    GROUP BY
+                        B_MSISDN, START_DATE, START_HOUR, CALL_TYPE, 
+                        EVENT_TYPE, SUBSCRIBER_TYPE, KEYWORD
+                ) source
+               ON (
+             target.B_MSISDN = source.B_MSISDN AND
+             target.START_DATE = source.START_DATE AND
+             target.START_HOUR = source.START_HOUR AND
+             target.CALL_TYPE = source.CALL_TYPE AND
+             target.EVENT_TYPE = source.EVENT_TYPE AND
+             target.KEYWORD = source.KEYWORD AND
+             target.SUBSCRIBER_TYPE = source.SUBSCRIBER_TYPE 
+              )
+                WHEN MATCHED THEN
+                    UPDATE SET 
+                        target.CDR_COUNT = source.CDR_COUNT,
+                        target.CHARGE_AMOUNT = source.CHARGE_AMOUNT
+                WHEN NOT MATCHED THEN
+                    INSERT (
+                        B_MSISDN, START_DATE, START_HOUR, CALL_TYPE, 
+                        EVENT_TYPE, SUBSCRIBER_TYPE, KEYWORD, CDR_COUNT, CHARGE_AMOUNT
+                    )
+                    VALUES (
+                        source.B_MSISDN, source.START_DATE, source.START_HOUR, source.CALL_TYPE, 
+                        source.EVENT_TYPE, source.SUBSCRIBER_TYPE, source.KEYWORD, source.CDR_COUNT, source.CHARGE_AMOUNT
+                    )
             ");
 
-            Log::info("Agrégation OCC terminée avec succès.");
+            Log::info("Opération MERGE OCC terminée avec succès.");
 
             // ✅ FIN PROPRE
             $jobModel->refresh();

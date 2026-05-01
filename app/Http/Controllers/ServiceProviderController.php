@@ -88,4 +88,22 @@ class ServiceProviderController extends Controller
     return redirect()->route('providers.index')
         ->with('flash', ['success' => 'Fournisseur supprimé avec succès.']);
 }
+public function checkIdFiscale(Request $request)
+    {
+        // On récupère la valeur envoyée par Axios
+        $value = $request->query('id_fiscale');
+
+        if (!$value) {
+            return response()->json(['exists' => false]);
+        }
+
+        // Vérification dans la base de données
+        $exists = ServiceProvider::where('id_fiscale', $value)->exists();
+
+        return response()->json([
+            'exists' => $exists
+        ]);
+    }
+
+
 }

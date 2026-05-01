@@ -20,6 +20,7 @@ use App\Http\Controllers\ServiceProviderController;
 
 
 Route::resource('services', ServiceSmsPlusController::class)->except(['show']);
+Route::get('/providers/check-id', [ServiceProviderController::class, 'checkIdFiscale'])->name('providers.check-id');
 Route::resource('providers', ServiceProviderController::class);
 // Page d'accueil (publique)
 Route::get('/', function () {
@@ -38,7 +39,7 @@ Route::middleware(['auth', 'checkrole:analyst_biz'])->prefix('monitoring')->grou
     Route::post('/bulk-search', [AnalysteBusinessController::class, 'execBulkSearch'])->name('analyste.bulk.search');
     Route::get('/api/search', [AnalysteBusinessController::class, 'execSearch'])->name('analyste.api.search');
     Route::get('/export', [AnalysteBusinessController::class, 'exportExcel'])->name('analyste.export');});
-
+Route::get('/providers/check-id', [ServiceProviderController::class, 'checkIdFiscale'])->name('providers.check-id');
 
 // Route spécifique au rôle biz
 Route::middleware(['auth', 'verified', 'checkrole:analyst_biz'])->group(function () {
@@ -84,5 +85,10 @@ Route::middleware(['auth', 'checkrole:analyst_op'])->group(function () {
 Route::middleware(['auth', 'verified', 'checkrole:analyst_op'])->group(function () {
     Route::get('/op-dashboard', [AnalysteOpController::class, 'dashboard'])->name('op.dashboard');
 });
+Route::post('/check-login', [UserController::class, 'checkLogin'])
+    ->name('api.login.check');
 
 require __DIR__.'/auth.php';
+// Route publique pour la vérification d'email en temps réel (Login)
+Route::post('/check-email-availability', [UserController::class, 'checkEmailAvailability'])
+    ->name('api.email.check');

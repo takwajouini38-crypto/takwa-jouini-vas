@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Auth;
 
 class UserController extends Controller
 {
@@ -142,7 +143,34 @@ class UserController extends Controller
 
         return back()->with('success', 'Photo de profil mise à jour !');
     }
+    public function checkEmailAvailability(Request $request)
+{
+    // On valide que l'email est présent et bien formé
+    $request->validate([
+        'email' => 'required|email',
+    ]);
 
+    $exists = \App\Models\User::where('email', $request->email)->exists();
+
+    return response()->json([
+        'exists' => $exists,
+        'message' => $exists ? 'Utilisateur trouvé.' : 'Cet email n\'existe pas dans notre système.'
+    ]);
+}
+public function checkLogin(Request $request)
+{
+    $user = User::where('email', $request->email)->first();
+
+    if (!$user) {
+        return response()->json(['valid' => false]);
+    }
+
+    if (Hash::check($request->password, $user->password)) {
+        return response()->json(['valid' => true]);
+    }
+
+    return response()->json(['valid' => false]);
+}
 
 
 }

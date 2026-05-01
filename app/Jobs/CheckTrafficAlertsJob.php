@@ -22,6 +22,12 @@ class CheckTrafficAlertsJob implements ShouldQueue
      * Le nombre de fois que le job peut être tenté.
      */
     public $tries = 3;
+    public function __construct()
+    {
+        // 🔥 FORCE CE JOB SUR LA QUEUE 'traffic'
+        // Cela permet de le séparer de la queue 'etl' utilisée pour les CDR
+        $this->onQueue('traffic'); 
+    }
 
     public function handle()
     {

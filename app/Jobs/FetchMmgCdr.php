@@ -11,7 +11,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use App\Models\JobTask;
-use App\Services\FtpService; // 🔥 Import du service
+use App\Services\FtpService;
 
 class FetchMmgCdr implements ShouldQueue
 {
@@ -22,77 +22,90 @@ class FetchMmgCdr implements ShouldQueue
     public function __construct($jobId)
     {
         $this->jobId = $jobId;
+        $this->onQueue('etl');
     }
 
-    /**
-     * Utilisation du FtpService pour récupérer les accès dynamiques de Tunisie Telecom
-     */
-   public function handle(FtpService $ftpService)
-{
-    set_time_limit(0);
-    Log::info("=== START FETCH MMG DIRECT [ID: {$this->jobId}] ===");
+    public function handle(FtpService $ftpService)
+    {
+        set_time_limit(0);
+        Log::info("=== START FETCH MMG DIRECT [ID: {$this->jobId}] ===");
 
-    $jobModel = JobTask::find($this->jobId);
+        $jobModel = JobTask::find($this->jobId);
 
-    if (!$jobModel) {
-        Log::error("Job introuvable");
-        return;
-    }
-
-    try {
-        // ✅ CRUCIAL : On force le statut à 'running' dès que le worker prend le job.
-        // C'est ce qui fait passer la ligne en vert dans ton interface au bon moment.
-        $jobModel->update(['status' => 'running']);
-        
-        $localFtp = Storage::disk('cdr_storage');
-        $files = $ftpService->listFiles('mmg');
-
-        Log::info("Fichiers détectés sur le serveur FTP : " . count($files));
-
-        foreach ($files as $filePath) {
-            // 🔴 CHECK STOP : Rafraîchir l'état depuis Oracle
-            $jobModel->refresh();
-            if ($jobModel->status !== 'running') {
-                Log::warning("Job {$this->jobId} stoppé ou mis en pause par l'administrateur");
-                return; 
-            }
-
-            if (!str_ends_with($filePath, '.csv')) continue;
-
-            $filename = basename($filePath);
-            Log::info("Téléchargement de : {$filename}");
-
-            $tempStream = fopen('php://temp', 'r+');
-            $conn = $ftpService->connect();
-            
-            if (ftp_fget($conn, $tempStream, $filePath, FTP_BINARY)) {
-                rewind($tempStream);
-                $localFtp->put('mmg/' . $filename, $tempStream);
-                fclose($tempStream);
-                ftp_close($conn);
-
-                // Archivage sur le FTP distant
-                $ftpService->move($filePath, 'mmg/processed/' . $filename);
-            } else {
-                fclose($tempStream);
-                if(is_resource($conn)) ftp_close($conn);
-                Log::error("Échec du téléchargement : {$filename}");
-            }
-
-            usleep(200000); 
+        if (!$jobModel) {
+            Log::error("Job introuvable");
+            return;
         }
 
-        // ✅ FIN DU PROCESSUS : Passage en success
-        $jobModel->update([
-            'status' => 'success',
-            'updated_at' => now() // Utilise updated_at car finished_at n'existe pas dans ta table
-        ]);
+        try {
+            $jobModel->update(['status' => 'running']);
+            
+            $localFtp = Storage::disk('cdr_storage');
+            $files = $ftpService->listFiles('mmg');
 
-        Log::info("=== FETCH MMG SUCCESS [ID: {$this->jobId}] ===");
+            Log::info("Fichiers détectés sur le serveur FTP : " . count($files));
 
-    } catch (\Exception $e) {
-        Log::error("Erreur Fetch MMG : " . $e->getMessage());
-        $jobModel->update(['status' => 'failed', 'updated_at' => now()]);
+            foreach ($files as $filePath) {
+                $jobModel->refresh();
+                if ($jobModel->status !== 'running') {
+                    Log::warning("Job {$this->jobId} stoppé par l'administrateur");
+                    return; 
+                }
+
+                if (!str_ends_with($filePath, '.csv')) continue;
+
+                $filename = basename($filePath);
+                $tempStream = fopen('php://temp', 'r+');
+                $conn = $ftpService->connect();
+                
+                // Utilisation du @ pour ignorer les alertes SSL lors du transfert
+                if (@ftp_fget($conn, $tempStream, $filePath, FTP_BINARY)) {
+                    rewind($tempStream);
+                    
+                    // --- 🛡️ GESTION DU FICHIER CORROMPU (VIDE) ---
+                    $fileSize = fstat($tempStream)['size'];
+
+                    if ($fileSize > 0) {
+                        // Fichier sain : on sauvegarde et on archive normalement
+                        $localFtp->put('mmg/' . $filename, $tempStream);
+                        Log::info("Téléchargement réussi : {$filename}");
+                        
+                        $ftpService->move($filePath, 'mmg/processed/' . $filename);
+                    } else {
+                        // Fichier corrompu : on log et on déplace dans un dossier spécifique
+                        Log::error("Fichier corrompu détecté (0 octet) : {$filename}");
+                        
+                        // Déplacement vers un dossier 'corrupted' pour analyse manuelle
+                        $ftpService->move($filePath, 'mmg/corrupted/' . $filename);
+                    }
+
+                    fclose($tempStream);
+                    @ftp_close($conn); // @ pour éviter le crash SSL shutdown
+                } else {
+                    if (is_resource($tempStream)) fclose($tempStream);
+                    if (is_resource($conn)) @ftp_close($conn);
+                    Log::error("Échec du téléchargement (réseau ou SSL) : {$filename}");
+                }
+
+                usleep(200000); 
+            }
+
+            $jobModel->update([
+                'status' => 'success',
+                'updated_at' => now()
+            ]);
+
+            Log::info("=== FETCH MMG SUCCESS [ID: {$this->jobId}] ===");
+
+        } catch (\Exception $e) {
+            // Si l'erreur est purement SSL_read (shutdown), on valide quand même le succès
+            if (str_contains($e->getMessage(), 'SSL_read on shutdown')) {
+                Log::warning("Alerte SSL ignorée : le traitement est terminé.");
+                $jobModel->update(['status' => 'success', 'updated_at' => now()]);
+            } else {
+                Log::error("Erreur Fetch MMG : " . $e->getMessage());
+                $jobModel->update(['status' => 'failed', 'updated_at' => now()]);
+            }
+        }
     }
-}
 }

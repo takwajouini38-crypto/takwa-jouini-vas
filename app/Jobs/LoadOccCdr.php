@@ -23,6 +23,7 @@ class LoadOccCdr implements ShouldQueue
     public function __construct($jobId)
     {
         $this->jobId = $jobId;
+        $this->onQueue('etl');
     }
 
     /**

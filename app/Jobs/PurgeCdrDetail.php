@@ -22,6 +22,7 @@ class PurgeCdrDetail implements ShouldQueue
     public function __construct($jobId)
     {
         $this->jobId = $jobId;
+        $this->onQueue('etl');
     }
 
     /**
@@ -93,11 +94,16 @@ class PurgeCdrDetail implements ShouldQueue
                 Log::warning("Purge stoppée avant DELETE MMG");
                 return;
             }
+/*conserve toujours les 30 derniers jours d'historique par rapport à la dernière donnée chargée*/
+               $deletedMmg = DB::connection('oracle_dynamic')->affectingStatement("
+                DELETE FROM RA_T_MMG_CDR_DETAIL 
+                WHERE START_DATE < (SELECT MAX(START_DATE) - 30 FROM RA_T_MMG_CDR_DETAIL)");
 
-            $deletedMmg = DB::connection('oracle_dynamic')->affectingStatement("
+
+           /* $deletedMmg = DB::connection('oracle_dynamic')->affectingStatement("
                 DELETE FROM RA_T_MMG_CDR_DETAIL 
                 WHERE START_DATE < SYSDATE - 30
-            ");
+            ");*/
 
             // =========================
             // 🔴 PARTIE 4 : DB OCC (Connexion Dynamique)
@@ -107,11 +113,17 @@ class PurgeCdrDetail implements ShouldQueue
                 Log::warning("Purge stoppée avant DELETE OCC");
                 return;
             }
+     
+            /*conserve toujours les 30 derniers jours d'historique par rapport à la dernière donnée chargée*/
+               $deletedOcc = DB::connection('oracle_dynamic')->affectingStatement("
+                DELETE FROM  RA_T_OCC_CDR_DETAIL 
+                WHERE START_DATE < (SELECT MAX(START_DATE) - 30 FROM RA_T_OCC_CDR_DETAIL)");
 
-            $deletedOcc = DB::connection('oracle_dynamic')->affectingStatement("
+
+           /* $deletedOcc = DB::connection('oracle_dynamic')->affectingStatement("
                 DELETE FROM RA_T_OCC_CDR_DETAIL 
                 WHERE START_DATE < SYSDATE - 30
-            ");
+            ");*/
 
             Log::info("DB purge : MMG=$deletedMmg OCC=$deletedOcc");
 

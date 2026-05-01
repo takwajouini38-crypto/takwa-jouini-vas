@@ -5,21 +5,27 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 use App\Jobs\CheckTrafficAlertsJob;
 
+/*
+|--------------------------------------------------------------------------
+| Console Routes
+|--------------------------------------------------------------------------
+*/
+
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-// --- CONFIGURATION ETL TUNISIE TELECOM ---
-
-// En développement : Test toutes les minutes
-// Le withoutOverlapping() est CRUCIAL : il crée un verrou (lock) 
-// pour empêcher une 2ème chaîne de démarrer si la 1ère n'est pas finie.
-// Dans routes/console.php
+// --- 1. CHAÎNE ETL (TRAITEMENT LOURD) ---
+// On l'envoie sur la queue 'etl'
 Schedule::command('cdr:run-etl')
-    ->everyFiveMinutes() // On passe à 5 minutes pour laisser la chaîne finir
-    ->onOneServer() // Utile si tu as plusieurs instances
-    ->withoutOverlapping(10); // Le 10 signifie que le verrou expire après 10 min quoi qu'il arrive
-    Schedule::job(new CheckTrafficAlertsJob)->everyMinute();
+    ->everyMinute()
+    ->onOneServer()
+    ->withoutOverlapping(10);
+    
 
-// En production réelle :
-// Schedule::command('cdr:run-etl')->dailyAt('02:00')->withoutOverlapping();
+// --- 2. ANALYSE DU TRAFIC (CRITIQUE/RAPIDE) ---
+// On l'envoie sur la queue 'traffic'
+/*Schedule::job(new CheckTrafficAlertsJob)
+    ->everyFiveMinutes()
+->onOneServer()
+    ->withoutOverlapping(10);*/

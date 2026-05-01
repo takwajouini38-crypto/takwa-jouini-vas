@@ -39,69 +39,67 @@ class DbConfigController extends Controller
             'port.between' => "Le port doit être un numéro valide entre 1 et 65535."
         ]);
 
-        try {
-            // Si on active cette config, on désactive les autres dans Oracle
-            if ($request->is_active) {
-                DbConfig::query()->update(['is_active' => false]);
+       try {
+            // Conversion explicite en entier 0 ou 1
+            $isActive = $request->is_active ? 1 : 0;
+
+            if ($isActive === 1) {
+                DbConfig::query()->update(['is_active' => 0]);
             }
 
-            // Insertion explicite
             DbConfig::create([
                 'host'         => $request->host,
                 'port'         => $request->port,
                 'service_name' => $request->service_name,
                 'username'     => $request->username,
                 'password'     => $request->password,
-                'is_active'    => $request->is_active ?? false,
+                'is_active'    => $isActive, // Envoi de l'entier
             ]);
 
-            return redirect()->route('admin.db.index')->with('success', 'Config enregistrée dans Oracle.');
+            return redirect()->route('admin.db.index')->with('success', 'Config enregistrée.');
 
         } catch (\Exception $e) {
             Log::error("Erreur d'insertion Oracle : " . $e->getMessage());
-            return redirect()->back()->withErrors(['error' => "Erreur Oracle : " . $e->getMessage()]);
+            return redirect()->back()->withErrors(['error' => "Erreur : " . $e->getMessage()]);
         }
     }
 
     public function update(Request $request, $id)
-{
-    // Validation des données entrantes
-    $request->validate([
-      'host'         => 'required|ip',// Vérifie le format d'adresse IP (v4 ou v6)
+    {
+        $request->validate([
+            'host'         => 'required|ip',
             'port'         => 'required|integer|between:1,65535',
-            'service_name' => 'required|string|regex:/^[a-zA-Z_]+$/', // Uniquement lettres et underscore',
+            'service_name' => 'required|string',
             'username'     => 'required|string',
-            'password'     => 'required|string',
-            'is_active'    => 'boolean'],[
-            'host.ip' => "L'adresse hôte doit être une adresse IP valide.",
-            'service_name.regex' => "Le nom du service ne doit comporter que des lettres.",
         ]);
 
+        try {
+            $config = DbConfig::findOrFail($id);
+            
+            // Conversion explicite
+            $isActive = $request->is_active ? 1 : 0;
 
-    try {
-        $config = DbConfig::findOrFail($id);
+            if ($isActive === 1) {
+                DbConfig::where('id', '!=', $id)->update(['is_active' => 0]);
+            }
 
-        // Si cette config est activée, on désactive toutes les autres
-        if ($request->is_active) {
-            DbConfig::where('id', '!=', $id)->update(['is_active' => false]);
+            $config->host = $request->host;
+            $config->port = $request->port;
+            $config->service_name = $request->service_name;
+            $config->username = $request->username;
+            $config->is_active = $isActive; // Mise à jour avec l'entier
+            
+            if ($request->filled('password')) {
+                $config->password = $request->password;
+            }
+            
+            $config->save();
+
+            return redirect()->route('admin.db.index')->with('success', 'Mise à jour réussie.');
+        } catch (\Exception $e) {
+            return redirect()->back()->withErrors(['error' => "Erreur : " . $e->getMessage()]);
         }
-
-        // Mise à jour des champs sauf le mot de passe s'il est vide
-        $config->fill($request->except('password'));
-        
-        if ($request->filled('password')) {
-            $config->password = $request->password;
-        }
-        
-        $config->save();
-
-        return redirect()->route('admin.db.index')->with('success', 'Mise à jour réussie.');
-    } catch (\Exception $e) {
-        Log::error("Erreur de mise à jour Oracle ID {$id} : " . $e->getMessage());
-        return redirect()->back()->withErrors(['error' => "Erreur lors de la modification : " . $e->getMessage()]);
     }
-}
-
     public function destroy($id)
     {
         DbConfig::findOrFail($id)->delete();
@@ -124,23 +122,20 @@ class DbConfigController extends Controller
         ]);
     }
     public function setActive($id)
-{
-    try {
-        // 1. Désactiver toutes les configurations Oracle
-        DbConfig::query()->update(['is_active' => false]);
+    {
+        try {
+            // On utilise des entiers 0 et 1 explicitement
+            DbConfig::query()->update(['is_active' => 0]);
 
-        // 2. Activer la configuration sélectionnée
-        $config = DbConfig::findOrFail($id);
-        $config->is_active = true;
-        $config->save();
+            $config = DbConfig::findOrFail($id);
+            $config->is_active = 1; // Forçage entier
+            $config->save();
 
-        // 3. (Optionnel) On force le service à configurer la nouvelle connexion immédiatement
-        $this->oracleService->configureConnection();
+            $this->oracleService->configureConnection();
 
-        return redirect()->back()->with('success', "Le serveur Oracle {$config->host} est désormais la base active.");
-    } catch (\Exception $e) {
-        Log::error("Erreur lors de l'activation Oracle : " . $e->getMessage());
-        return redirect()->back()->withErrors(['error' => "Impossible d'activer ce serveur : " . $e->getMessage()]);
+            return redirect()->back()->with('success', "Le serveur Oracle {$config->host} est activé.");
+        } catch (\Exception $e) {
+            return redirect()->back()->withErrors(['error' => "Erreur : " . $e->getMessage()]);
+        }
     }
-}
 }

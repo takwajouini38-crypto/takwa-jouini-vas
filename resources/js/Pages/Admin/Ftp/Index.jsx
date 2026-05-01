@@ -224,6 +224,7 @@ export default function Index({ ftps }) {
         port: 21,
         username: "",
         password: "",
+        is_default: 0, // Ajout du champ par défaut
     });
 
     // Validation en temps réel
@@ -254,7 +255,7 @@ export default function Index({ ftps }) {
             if (!data.port) {
                 setError('port', "Le port est requis.");
             } else if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
-                setError('port', "Le port doit être compris entre 1 et 65535.","Le port est requis.");
+                setError('port', "Le port doit être compris entre 1 et 65535.");
             } else {
                 clearErrors('port');
             }
@@ -292,6 +293,8 @@ export default function Index({ ftps }) {
             const response = await axios.post(route('admin.ftp.test'), data);
             if (response.data.status === 'success') {
                 setTestStatus('success');
+                // LOGIQUE DEMANDÉE : On définit is_default à 1 (true) après succès du test
+                setData("is_default", 1);
             } else {
                 setTestStatus('error');
             }
@@ -310,6 +313,7 @@ export default function Index({ ftps }) {
             port: ftp.port,
             username: ftp.username,
             password: "", 
+            is_default: ftp.is_default,
         });
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
@@ -484,12 +488,12 @@ export default function Index({ ftps }) {
                         </div>
                         
                         {testStatus === 'success' && (
-                            <div className="mt-4 p-3 bg-green-50 text-green-700 rounded-xl text-sm flex items-center gap-2 border border-green-200">
-                                <CheckCircleIcon className="w-5 h-5"/> Connexion réussie !
+                            <div className="mt-4 p-3 bg-green-50 text-green-700 rounded-xl text-sm flex items-center gap-2 border border-green-200 shadow-sm">
+                                <CheckCircleIcon className="w-5 h-5"/> Connexion réussie ! Ce serveur sera défini par défaut lors de l'enregistrement.
                             </div>
                         )}
                         {testStatus === 'error' && (
-                            <div className="mt-4 p-3 bg-red-50 text-red-700 rounded-xl text-sm flex items-center gap-2 border border-red-200">
+                            <div className="mt-4 p-3 bg-red-50 text-red-700 rounded-xl text-sm flex items-center gap-2 border border-red-200 shadow-sm">
                                 <ExclamationCircleIcon className="w-5 h-5"/> Échec de connexion. Vérifiez vos identifiants.
                             </div>
                         )}
