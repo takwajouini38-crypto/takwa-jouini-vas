@@ -7,6 +7,9 @@ import {
     Line, ComposedChart, ReferenceLine, LabelList
 } from 'recharts';
 import { toPng } from 'html-to-image';
+import { useState } from 'react'; // Ajoute useState ici
+import axios from 'axios';
+import { SparklesIcon, XMarkIcon } from '@heroicons/react/24/solid';
 
 export default function RevenueByProvider({ auth, providers, availableServices, revenueData, servicesDetail, xAxisKey, filters, hasData }) {
     
@@ -45,6 +48,39 @@ export default function RevenueByProvider({ auth, providers, availableServices, 
             return { ...item, tendance: parseFloat(avg.toFixed(2)) };
         });
     }, [servicesDetail, xAxisKey]);
+    // États pour l'IA
+    const [aiAnalysis, setAiAnalysis] = useState(null);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [showAiModal, setShowAiModal] = useState(false);
+
+    // Fonction pour appeler ton contrôleur AnalysteBiz/AiAnalysisController
+    const handleAiAnalysis = async (data, context) => {
+        setIsAnalyzing(true);
+        setShowAiModal(true);
+        setAiAnalysis("L'IA analyse les flux de revenus VAS pour Tunisie Télécom...");
+
+        try {
+            const response = await axios.post(route('ai.analyze'), {
+                chartData: data,
+                context: context
+            });
+            setAiAnalysis(response.data.analysis);
+        } catch (error) {
+            setAiAnalysis("Erreur : Impossible de joindre l'IA Groq. Vérifiez votre connexion ou votre clé API.");
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
+
+    // Composant Bouton réutilisable
+    const AiBtn = ({ data, context }) => (
+        <button 
+            onClick={() => handleAiAnalysis(data, context)}
+            className="flex items-center gap-1 bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded text-[10px] font-bold hover:bg-indigo-100 border border-indigo-200 transition-all shadow-sm"
+        >
+            <SparklesIcon className="h-3 w-3" /> ANALYSE IA
+        </button>
+    );
 
     const exportAsPng = (ref, filename) => {
         if (!ref.current) return;
@@ -129,7 +165,11 @@ export default function RevenueByProvider({ auth, providers, availableServices, 
                                 <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                                     <div className="flex justify-between items-center mb-4 text-[10px] font-bold text-gray-400 uppercase">
                                         <span>Parts de marché</span>
+                                    
+                                             <div className="flex items-center gap-2">
+                                           <AiBtn data={marketShareData} context="Parts de marché des fournisseurs VAS" />
                                         <button onClick={() => exportAsPng(pieChartRef, 'parts_marche')} className="bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded">PNG</button>
+                                    </div>
                                     </div>
                                     <div ref={pieChartRef} className="h-[300px]">
                                         <ResponsiveContainer width="100%" height="100%">
@@ -143,39 +183,46 @@ export default function RevenueByProvider({ auth, providers, availableServices, 
                                         </ResponsiveContainer>
                                     </div>
                                 </div>
-
-                                {/* TOP BAR CHART */}
-                                <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                                    <div className="flex justify-between items-center mb-4 text-[10px] font-bold text-gray-400 uppercase">
-                                        <span>Revenus par Fournisseur (TND)</span>
-                                        <button onClick={() => exportAsPng(topRevenueRef, 'top_revenus')} className="bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded">PNG</button>
-                                    </div>
-                                    <div ref={topRevenueRef} className="h-[300px]">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <BarChart data={[...revenueData].sort((a,b) => b.total - a.total)} layout="vertical" margin={{ right: 60 }}>
-                                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
-                                                <XAxis type="number" hide />
-                                                <YAxis dataKey="nom_fournisseur" type="category" width={100} tick={{fontSize: 10}} />
-                                                <Tooltip content={<CustomTooltip />} />
-                                                <Bar dataKey="total" radius={[0, 4, 4, 0]} barSize={15}>
-                                                    {revenueData.map((entry, index) => <Cell key={index} fill={getFixedColor(index)} />)}
-                                                    <LabelList dataKey="total" position="right" formatter={(v) => `${Math.round(v).toLocaleString()} TND`} style={{fontSize: '10px', fontWeight: 'bold', fill: '#444'}} />
-                                                </Bar>
-                                            </BarChart>
-                                        </ResponsiveContainer>
-                                    </div>
-                                </div>
+{/* TOP BAR CHART - Revenus par Fournisseur */}
+<div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+    <div className="flex justify-between items-center mb-4 text-[10px] font-bold text-gray-400 uppercase">
+        <span>Revenus par Fournisseur (TND)</span>
+        <div className="flex items-center gap-2">
+            <AiBtn data={revenueData} context="Classement des revenus par fournisseur" />
+            <button onClick={() => exportAsPng(topRevenueRef, 'top_revenus')} className="bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded">PNG</button>
+        </div>
+    </div>
+    
+    <div ref={topRevenueRef} className="h-[300px]">
+        <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={[...revenueData].sort((a,b) => b.total - a.total)} layout="vertical" margin={{ right: 60 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
+                <XAxis type="number" hide />
+                <YAxis dataKey="nom_fournisseur" type="category" width={100} tick={{fontSize: 10}} />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar dataKey="total" radius={[0, 4, 4, 0]} barSize={15}>
+                    {revenueData.map((entry, index) => <Cell key={index} fill={getFixedColor(index)} />)}
+                    <LabelList dataKey="total" position="right" formatter={(v) => `${Math.round(v).toLocaleString()} TND`} style={{fontSize: '10px', fontWeight: 'bold', fill: '#444'}} />
+                </Bar>
+            </BarChart>
+        </ResponsiveContainer>
+    </div>
+</div>
                             </div>
 
                             {/* GRAPHIQUE DE DÉTAIL (SERVICE OU DATE) */}
                             {filters.provider && (
                                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                                     <div className="flex justify-between items-center mb-6">
-                                        <h3 className="text-lg font-bold text-gray-800">
-                                            Détail : <span className="text-blue-600 font-black">{filters.service || filters.provider}</span>
+                                      <h3 className="text-lg font-bold text-gray-800">
+                                          Détail : <span className="text-blue-600 font-black">{filters.service || filters.provider}</span>
                                         </h3>
-                                        <button onClick={() => exportAsPng(detailChartRef, 'evolution_details')} className="text-xs bg-gray-900 text-white px-4 py-2 rounded-lg font-bold hover:bg-black transition-all">EXPORTER PNG</button>
-                                    </div>
+                                      {/* AJOUT ICI */}
+                                       <div className="flex items-center gap-3">
+                                        <AiBtn data={enrichedDetails} context={`Évolution détaillée pour ${filters.service || filters.provider}`} />
+                                          <button onClick={() => exportAsPng(detailChartRef, 'evolution_details')} className="text-xs bg-gray-900 text-white px-4 py-2 rounded-lg font-bold hover:bg-black transition-all">EXPORTER PNG</button>
+                                             </div>
+                                                   </div>
                                     <div ref={detailChartRef} className="h-[400px]">
                                         <ResponsiveContainer width="100%" height="100%">
                                             <ComposedChart data={enrichedDetails} margin={{ top: 20, right: 30, bottom: 40 }}>
@@ -201,6 +248,35 @@ export default function RevenueByProvider({ auth, providers, availableServices, 
                     )}
                 </div>
             </div>
+            {/* COPIER CE BLOC JUSTE AVANT </AuthenticatedLayout> */}
+              {showAiModal && (
+       <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-indigo-100">
+            <div className="bg-gradient-to-r from-indigo-600 to-blue-700 p-4 flex justify-between items-center text-white">
+                <div className="flex items-center gap-2">
+                    <SparklesIcon className="h-5 w-5 text-yellow-300" />
+                    <h3 className="font-bold text-sm uppercase">Analyse IA - Tunisie Télécom</h3>
+                </div>
+                <button onClick={() => setShowAiModal(false)}><XMarkIcon className="h-6 w-6" /></button>
+            </div>
+            <div className="p-6">
+                {isAnalyzing ? (
+                    <div className="flex flex-col items-center py-10">
+                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600 mb-4"></div>
+                        <p className="text-indigo-600 text-sm italic">Analyse des données en cours...</p>
+                    </div>
+                ) : (
+                    <div className="text-gray-700 text-sm whitespace-pre-line bg-indigo-50 p-4 rounded-lg border border-indigo-100">
+                        {aiAnalysis}
+                    </div>
+                )}
+                <div className="mt-4 flex justify-end">
+                    <button onClick={() => setShowAiModal(false)} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold text-xs uppercase">Fermer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+)}
         </AuthenticatedLayout>
     );
 }

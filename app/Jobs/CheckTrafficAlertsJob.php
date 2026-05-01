@@ -19,7 +19,7 @@ class CheckTrafficAlertsJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     /**
-     * Le nombre de fois que le job peut être tenté.
+     * Le nombre de fois que le job peut être tenté
      */
     public $tries = 3;
     public function __construct()

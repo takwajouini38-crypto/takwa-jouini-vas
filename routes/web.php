@@ -15,6 +15,7 @@ use App\Http\Controllers\AnalysteOp\AnalysteOpController;
 use App\Http\Controllers\AnalysteOp\TrafficMonitoringController;
 use App\Http\Controllers\AlertController;
 use App\Http\Controllers\ServiceProviderController;
+use App\Http\Controllers\AnalysteBiz\AiAnalysisController;
 
 
 
@@ -38,7 +39,10 @@ Route::middleware(['auth', 'checkrole:analyst_biz'])->prefix('monitoring')->grou
     Route::get('/search', [AnalysteBusinessController::class, 'searchPage'])->name('analyste.search');
     Route::post('/bulk-search', [AnalysteBusinessController::class, 'execBulkSearch'])->name('analyste.bulk.search');
     Route::get('/api/search', [AnalysteBusinessController::class, 'execSearch'])->name('analyste.api.search');
-    Route::get('/export', [AnalysteBusinessController::class, 'exportExcel'])->name('analyste.export');});
+    Route::get('/export', [AnalysteBusinessController::class, 'exportExcel'])->name('analyste.export');
+    // Route IA sécurisée avec Groq
+    Route::post('/api/ai/analyze', [AiAnalysisController::class, 'analyzeRevenue'])->name('ai.analyze');});
+
 Route::get('/providers/check-id', [ServiceProviderController::class, 'checkIdFiscale'])->name('providers.check-id');
 
 // Route spécifique au rôle biz

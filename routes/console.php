@@ -25,7 +25,7 @@ Schedule::command('cdr:run-etl')
 
 // --- 2. ANALYSE DU TRAFIC (CRITIQUE/RAPIDE) ---
 // On l'envoie sur la queue 'traffic'
-/*Schedule::job(new CheckTrafficAlertsJob)
+Schedule::job(new CheckTrafficAlertsJob)
     ->everyFiveMinutes()
 ->onOneServer()
-    ->withoutOverlapping(10);*/
+    ->withoutOverlapping(10);
