@@ -10,12 +10,12 @@ use Illuminate\Support\Facades\Auth;
 
 class UserController extends Controller
 {
-    // ✅ Liste des utilisateurs + recherche
+    //  Liste des utilisateurs + recherche
     public function index(Request $request)
     {
         $query = User::select('id', 'name', 'email', 'role', 'created_at','photo');
 
-        // 🔍 Recherche
+        //  Recherche
         if ($request->search) {
             $query->where(function ($q) use ($request) {
                 $q->where('name', 'like', '%' . $request->search . '%')
@@ -38,13 +38,13 @@ class UserController extends Controller
         ]);
     }
 
-    // ✅ Formulaire création
+    //  Formulaire création
     public function create()
     {
         return Inertia::render('Admin/Users/Create');
     }
 
-    // ✅ Stocker un utilisateur
+    //  Stocker un utilisateur
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -75,7 +75,7 @@ class UserController extends Controller
             ->with('success', 'Utilisateur créé avec succès');
     }
 
-    // ✅ Vérifier email (AJAX)
+    // Vérifier email (AJAX)
     public function checkEmail(Request $request)
     {
         $request->validate([
@@ -89,7 +89,7 @@ class UserController extends Controller
         ]);
     }
 
-    // ✅ Formulaire édition
+    // Formulaire édition
     public function edit(User $user)
     {
         return Inertia::render('Admin/Users/Edit', [
@@ -97,7 +97,7 @@ class UserController extends Controller
         ]);
     }
 
-    // ✅ Mise à jour
+    //  Mise à jour
     public function update(Request $request, User $user)
     {
         $validated = $request->validate([
@@ -112,7 +112,7 @@ class UserController extends Controller
                          ->with('success', 'Utilisateur modifié avec succès');
     }
 
-    // ✅ Suppression
+    //  Suppression
     public function destroy(User $user)
     {
         $user->delete();

@@ -84,6 +84,7 @@ Route::middleware(['auth', 'checkrole:analyst_op'])->group(function () {
     Route::post('/job-tasks/{jobTask}/start', [JobTaskActionController::class, 'start'])->name('job-tasks.start');
     Route::post('/job-tasks/{jobTask}/stop', [JobTaskActionController::class, 'stop'])->name('job-tasks.stop');
     Route::get('/analyste-op/traffic', [TrafficMonitoringController::class, 'index'])->name('analyste-op.traffic');
+    Route::post('/services/check-keyword', [ServiceSmsPlusController::class, 'checkKeyword'])->name('services.check-keyword');
 });
 
 Route::middleware(['auth', 'verified', 'checkrole:analyst_op'])->group(function () {
